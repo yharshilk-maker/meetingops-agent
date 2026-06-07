@@ -6,6 +6,12 @@ type MeetTranscriptEntry = {
   startTime?: string;
 };
 
+export type MeetSpace = {
+  name?: string;
+  meetingUri?: string;
+  meetingCode?: string;
+};
+
 type MeetListResponse<T> = {
   transcripts?: T[];
   transcriptEntries?: T[];
@@ -32,9 +38,15 @@ export async function resolveMeetTargetResource(target: string, accessToken: str
     .replace(/^spaces\//, "")
     .replace(/[/?#].*$/, "");
   if (!meetingCodeOrId) throw new Error("The configured Meet target does not contain a meeting code or space ID.");
-  const space = await googleGet<{ name: string }>(`spaces/${encodeURIComponent(meetingCodeOrId)}`, accessToken);
+  const space = await googleGet<MeetSpace>(`spaces/${encodeURIComponent(meetingCodeOrId)}`, accessToken);
   if (!space.name?.startsWith("spaces/")) throw new Error("Google Meet did not return a canonical space resource.");
   return `//meet.googleapis.com/${space.name}`;
+}
+
+export async function fetchGoogleMeetSpace(spaceName: string, accessToken: string) {
+  const name = spaceName.replace(/^\/\/meet\.googleapis\.com\//, "").replace(/^\/+/, "");
+  if (!name.startsWith("spaces/")) return undefined;
+  return googleGet<MeetSpace>(name, accessToken);
 }
 
 /**

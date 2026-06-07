@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 /.meetingops/
+/meet-bot/node_modules/
+/meet-bot/.meetingops-bot-profile/
+/meet-bot/.meetingops-bot-smoke-profile/
 
 # vercel
 .vercel

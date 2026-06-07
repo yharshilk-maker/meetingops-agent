@@ -28,6 +28,8 @@ https://YOUR_DOMAIN/api/webhooks/google-meet
 
 9. Redeploy, connect Google Workspace, and activate the Meet watcher.
 
+For automatic Meet-bot coverage, run `npm run worker` from `meet-bot` on a separate machine or browser-worker service with a persistent signed-in Chrome profile. Point `MEETINGOPS_BACKEND_URL` at the Railway app and use the same `MEETINGOPS_EXTENSION_TOKEN`.
+
 The included `railway.toml` starts the production Next.js server and uses `/api/health` for health checks.
 
 ## Fast hosted preview

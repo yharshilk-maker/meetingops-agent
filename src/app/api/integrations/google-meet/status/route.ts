@@ -1,4 +1,5 @@
 import { googleConnectionStatus } from "@/lib/agent/google-oauth";
+import { getCaptureConfig, listMeetBotJobs } from "@/lib/agent/capture-orchestrator";
 import { getStoredWatcher, syncWorkspaceWatcher } from "@/lib/agent/workspace-watcher";
 
 export async function GET() {
@@ -11,5 +12,5 @@ export async function GET() {
       // Return the last persisted watcher state if Google is temporarily unavailable.
     }
   }
-  return Response.json({ ...connection, watcher });
+  return Response.json({ ...connection, watcher, capture: await getCaptureConfig(), botJobs: await listMeetBotJobs() });
 }

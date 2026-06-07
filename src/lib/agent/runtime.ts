@@ -1,11 +1,13 @@
-import { GoogleMeetEvent, fetchGoogleMeetTranscript } from "@/lib/agent/google-meet";
+import { getCaptureConfig, queueMeetBotJob } from "@/lib/agent/capture-orchestrator";
+import { GoogleMeetEvent, fetchGoogleMeetSpace, fetchGoogleMeetTranscript } from "@/lib/agent/google-meet";
 import { analyzeWithLlm } from "@/lib/agent/llm";
+import { normalizeTranscript, transcriptParticipants } from "@/lib/agent/transcript-normalizer";
 import { DEMO_MEETINGS, INITIAL_WORKSPACE, Meeting, analyzeTranscript, meetingFromAnalysis } from "@/lib/meeting-engine";
 
 export type AgentStage = "idle" | "event_received" | "observing" | "fetching_transcript" | "analyzing" | "planning_actions" | "awaiting_approval" | "completed" | "failed";
 export type AgentRun = {
   id: string;
-  provider: "google_meet" | "manual_test" | "live_audio";
+  provider: "google_meet" | "manual_test" | "live_audio" | "meet_bot";
   stage: AgentStage;
   startedAt: string;
   completedAt?: string;
@@ -54,7 +56,13 @@ async function analyzeInput(run: AgentRun, input: import("@/lib/meeting-engine")
   return run;
 }
 
-async function processTranscriptInput(input: import("@/lib/meeting-engine").MeetingInput, provider: "manual_test" | "live_audio") {
+async function processTranscriptInput(input: import("@/lib/meeting-engine").MeetingInput, provider: "manual_test" | "live_audio" | "meet_bot") {
+  const transcript = await normalizeTranscript(input.transcript, { title: input.title, participants: input.participants });
+  const normalizedInput = {
+    ...input,
+    participants: input.participants.length ? input.participants : transcriptParticipants(transcript),
+    transcript,
+  };
   const run: AgentRun = {
     id: crypto.randomUUID(),
     provider,
@@ -63,10 +71,15 @@ async function processTranscriptInput(input: import("@/lib/meeting-engine").Meet
     log: [],
   };
   state.meetingOpsRuns = [run, ...(state.meetingOpsRuns ?? [])].slice(0, 20);
-  addLog(run, "event_received", provider === "live_audio" ? "Meet audio capture completed and started the agent." : "Transcript test bench submitted a meeting.");
-  addLog(run, "fetching_transcript", `Parsed ${input.transcript.length} transcript entries.`);
+  const receivedMessage = provider === "live_audio"
+    ? "Meet audio capture completed and started the agent."
+    : provider === "meet_bot"
+      ? "MeetingOps bot left the call and submitted its live-caption transcript."
+      : "Transcript test bench submitted a meeting.";
+  addLog(run, "event_received", receivedMessage);
+  addLog(run, "fetching_transcript", `Parsed ${normalizedInput.transcript.length} transcript entries.`);
   try {
-    return await analyzeInput(run, input);
+    return await analyzeInput(run, normalizedInput);
   } catch (error) {
     run.error = error instanceof Error ? error.message : "Unknown agent error";
     addLog(run, "failed", run.error);
@@ -80,6 +93,10 @@ export function processManualTranscript(input: import("@/lib/meeting-engine").Me
 
 export function processLiveAudioTranscript(input: import("@/lib/meeting-engine").MeetingInput) {
   return processTranscriptInput(input, "live_audio");
+}
+
+export function processMeetBotTranscript(input: import("@/lib/meeting-engine").MeetingInput) {
+  return processTranscriptInput(input, "meet_bot");
 }
 
 export async function processGoogleMeetEvent(event: GoogleMeetEvent, accessToken?: string) {
@@ -109,6 +126,17 @@ export async function processGoogleMeetEvent(event: GoogleMeetEvent, accessToken
     addLog(run, "event_received", `Google Workspace event received: ${event.type}.`);
     if (event.type === "google.workspace.meet.conference.v2.started") {
       addLog(run, "observing", "MeetingOps is awake and observing this active Google Meet conference.");
+      const config = await getCaptureConfig();
+      if ((config.mode === "bot" || config.mode === "hybrid") && run.conferenceRecord) {
+        const spaceName = event.subject?.replace(/^\/\/meet\.googleapis\.com\//, "");
+        const space = accessToken && spaceName ? await fetchGoogleMeetSpace(spaceName, accessToken).catch(() => undefined) : undefined;
+        const job = await queueMeetBotJob({
+          conferenceRecord: run.conferenceRecord,
+          meetingUrl: space?.meetingUri,
+          title: space?.meetingCode ? `Google Meet ${space.meetingCode}` : "Google Meet conversation",
+        });
+        addLog(run, "observing", job.meetingUrl ? `Queued Meet-bot fallback job ${job.id}.` : "Capture mode wants a Meet-bot fallback, but Google did not expose a join URL yet.");
+      }
       return run;
     }
     if (event.type === "google.workspace.meet.participant.v2.joined") {
@@ -145,7 +173,12 @@ export async function processGoogleMeetEvent(event: GoogleMeetEvent, accessToken
         transcript,
       };
     }
-    return await analyzeInput(run, input);
+    const transcript = await normalizeTranscript(input.transcript, { title: input.title, participants: input.participants });
+    return await analyzeInput(run, {
+      ...input,
+      participants: input.participants.length ? input.participants : transcriptParticipants(transcript),
+      transcript,
+    });
   } catch (error) {
     run.error = error instanceof Error ? error.message : "Unknown agent error";
     addLog(run, "failed", run.error);

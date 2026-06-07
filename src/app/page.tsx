@@ -28,6 +28,8 @@ type WorkspaceAgentStatus = {
   configured: boolean;
   connected: boolean;
   identity?: { email?: string; name?: string };
+  capture?: { mode: "official" | "bot" | "hybrid"; botName: string; updatedAt: string };
+  botJobs?: { id: string; title: string; meetingUrl?: string; status: string; createdAt: string; error?: string }[];
   watcher?: {
     state: "activating" | "active" | "needs_renewal" | "error";
     mode: "workspace_user" | "meeting_space";
@@ -279,16 +281,30 @@ function IngestModal({ meetings, onClose, onSelect, onWake }: { meetings: Meetin
 function IntegrationsModal({ onClose }: { onClose: () => void }) {
   const [status, setStatus] = useState<WorkspaceAgentStatus | null>(null);
   const [message, setMessage] = useState("");
+  const [mode, setMode] = useState<"official" | "bot" | "hybrid">("hybrid");
   async function refresh() {
     const response = await fetch("/api/integrations/google-meet/status");
-    setStatus(await response.json());
+    const next = await response.json() as WorkspaceAgentStatus;
+    setStatus(next);
+    if (next.capture?.mode) setMode(next.capture.mode);
   }
   useEffect(() => {
     fetch("/api/integrations/google-meet/status")
       .then((response) => response.json())
-      .then(setStatus)
+      .then((next: WorkspaceAgentStatus) => { setStatus(next); if (next.capture?.mode) setMode(next.capture.mode); })
       .catch(() => setStatus({ configured: false, connected: false }));
   }, []);
+  async function saveMode(nextMode = mode) {
+    setMessage("Updating capture mode...");
+    const response = await fetch("/api/integrations/capture-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: nextMode }),
+    });
+    const result = await response.json();
+    setMessage(response.ok ? `Capture mode set to ${result.mode}.` : result.error ?? "Capture mode update failed.");
+    if (response.ok) await refresh();
+  }
   async function activate() {
     setMessage("Installing background agent across your Workspace meetings...");
     const response = await fetch("/api/integrations/google-meet/activate", { method: "POST" });
@@ -304,7 +320,7 @@ function IntegrationsModal({ onClose }: { onClose: () => void }) {
     if (response.ok) await refresh();
   }
   const active = status?.watcher?.state === "active" || status?.watcher?.state === "activating";
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Workspace agent installation</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Run MeetingOps across Google Workspace</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Connect once. MeetingOps then wakes on Meet activity and delivers follow-through into Drive and Gmail.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><div className="rounded-xl border border-[#dce2de] bg-[#f7f9f7] p-4"><div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#52705f]"><Cloud size={18} /></div><div className="flex-1"><p className="text-sm font-semibold">Google Meet + Drive + Gmail</p><p className="mt-1 text-xs leading-5 text-[#748078]">{status?.identity?.email ? `Installed for ${status.identity.email}. ` : ""}{active ? "Watching every Meet space this user owns." : "Uses offline access so the background agent can work after meetings end."}</p></div><span className="tag">{active ? "Agent active" : status?.connected ? "Connected" : status?.configured ? "Ready" : "Needs credentials"}</span></div>{status?.connected ? <div className="mt-5 flex gap-2"><button onClick={activate} className="primary-button flex-1 justify-center">{active ? "Re-sync Workspace agent" : "Install Workspace agent"} <Zap size={14} /></button>{active && <button onClick={renew} className="icon-button" title="Renew subscription"><RotateCcw size={14} /></button>}</div> : <a href="/api/auth/google/connect" className="primary-button mt-5 w-full justify-center">Connect Google Workspace <ArrowRight size={14} /></a>}{status?.watcher?.expireTime && <p className="mt-3 text-center text-[11px] text-[#748078]">Watcher renews before {new Date(status.watcher.expireTime).toLocaleString()}.</p>}{message && <p className="mt-3 text-center text-xs text-[#617268]">{message}</p>}</div><div className="mt-4 rounded-xl bg-[#fff8e6] p-3 text-[11px] leading-5 text-[#79672f]"><strong>Workspace-native behavior:</strong> the web app is the control plane. The agent runs on Railway, listens to Workspace events, and writes results into the connected user&apos;s Google Drive and Gmail.</div></div></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Workspace agent installation</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Run MeetingOps across Google Workspace</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Connect once. MeetingOps wakes on Meet activity, captures the transcript, and delivers follow-through into Drive and Gmail.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><div className="rounded-xl border border-[#dce2de] bg-[#f7f9f7] p-4"><div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#52705f]"><Cloud size={18} /></div><div className="flex-1"><p className="text-sm font-semibold">Google Meet + Drive + Gmail</p><p className="mt-1 text-xs leading-5 text-[#748078]">{status?.identity?.email ? `Installed for ${status.identity.email}. ` : ""}{active ? "Watching every Meet space this user owns." : "Uses offline access so the background agent can work after meetings end."}</p></div><span className="tag">{active ? "Agent active" : status?.connected ? "Connected" : status?.configured ? "Ready" : "Needs credentials"}</span></div>{status?.connected ? <div className="mt-5 flex gap-2"><button onClick={activate} className="primary-button flex-1 justify-center">{active ? "Re-sync Workspace agent" : "Install Workspace agent"} <Zap size={14} /></button>{active && <button onClick={renew} className="icon-button" title="Renew subscription"><RotateCcw size={14} /></button>}</div> : <a href="/api/auth/google/connect" className="primary-button mt-5 w-full justify-center">Connect Google Workspace <ArrowRight size={14} /></a>}{status?.watcher?.expireTime && <p className="mt-3 text-center text-[11px] text-[#748078]">Watcher renews before {new Date(status.watcher.expireTime).toLocaleString()}.</p>}</div><div className="mt-4 rounded-xl border border-[#dce2de] bg-white p-4"><div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-semibold">Capture mode</p><p className="mt-1 text-xs leading-5 text-[#748078]">Official transcripts are preferred. The Meet-bot joins visibly when bot coverage is enabled.</p></div><span className="tag">{status?.capture?.mode ?? mode}</span></div><div className="grid gap-2 md:grid-cols-3">{(["hybrid", "official", "bot"] as const).map((item) => <button key={item} onClick={() => { setMode(item); void saveMode(item); }} className={`rounded-xl border p-3 text-left transition ${mode === item ? "border-[#9fbd79] bg-[#f0f8e6]" : "border-[#dde3df] bg-[#f9faf9] hover:bg-[#f2f5f2]"}`}><p className="text-xs font-semibold capitalize">{item}</p><p className="mt-1 text-[11px] leading-4 text-[#748078]">{item === "hybrid" ? "Queue bot at start, use official transcript when available." : item === "official" ? "No bot participant; process Google transcript files." : "Always use the visible caption bot."}</p></button>)}</div></div><div className="mt-4 rounded-xl border border-[#dce2de] bg-white p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Meet-bot queue</p><span className="tag">{status?.botJobs?.length ?? 0} jobs</span></div>{status?.botJobs?.length ? <div className="space-y-2">{status.botJobs.slice(0, 4).map((job) => <div key={job.id} className="rounded-lg bg-[#f7f9f7] p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-xs font-semibold">{job.title}</p><span className="tag">{job.status}</span></div><p className="mt-1 truncate text-[11px] text-[#748078]">{job.meetingUrl ?? job.error ?? "Waiting for Meet join URL"}</p></div>)}</div> : <p className="py-3 text-center text-xs text-[#87928c]">No bot jobs yet.</p>}</div>{message && <p className="mt-3 text-center text-xs text-[#617268]">{message}</p>}<div className="mt-4 rounded-xl bg-[#fff8e6] p-3 text-[11px] leading-5 text-[#79672f]"><strong>Production behavior:</strong> the web app is the control plane. Workspace events run on Railway; Meet-bot auto-join requires a separate browser worker running <code>npm run worker</code> in <code>meet-bot</code>.</div></div></div>;
 }
 
 function TestBenchModal({ onClose, onComplete }: { onClose: () => void; onComplete: (run: AgentRun) => void }) {

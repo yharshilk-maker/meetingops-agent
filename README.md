@@ -2,7 +2,7 @@
 
 **An event-driven AI agent that turns finished meetings into operational follow-through.**
 
-MeetingOps captures Google Meet audio through a companion Chrome extension or receives Google Workspace transcript events, reasons over what changed, and prepares controlled follow-up actions. It goes beyond meeting summaries by maintaining workspace memory, surfacing unresolved risks, and requiring human approval before external actions.
+MeetingOps automatically receives official Google Workspace transcripts or queues a visible Meet-bot that joins and captures live captions, reasons over what changed, and prepares controlled follow-up actions. A companion Chrome extension remains available as a manual fallback.
 
 **Live demo:** [meetingops-production.up.railway.app](https://meetingops-production.up.railway.app)
 
@@ -20,6 +20,8 @@ The agent uses evidence-backed structured reasoning, has a deterministic fallbac
 ## Highlights
 
 - Automatically receives Google Meet transcript-ready events through Workspace Events and Pub/Sub.
+- Supports official-only, Meet-bot-only, and hybrid automatic capture modes.
+- Queues a browser worker to join active meetings automatically and capture speaker-attributed captions.
 - Captures Meet tab audio and generates its own transcript with Groq Whisper, avoiding the paid Google Meet transcription requirement.
 - Installs a user-wide Workspace watcher that wakes on conferences, participants, and transcript activity across Meet spaces the connected user owns.
 - Extracts summaries, decisions, owners, deadlines, tasks, risks, and open questions.
@@ -49,7 +51,7 @@ Google Meet transcription finishes
   → External actions wait for human approval
 ```
 
-For meetings without Google transcription, use the included Chrome audio-capture extension. The dashboard also includes a **Paste transcript** test bench so reviewers can exercise the complete post-transcript workflow without waiting for a live meeting.
+For meetings without Google transcription, run the included Meet-bot worker or use the Chrome audio-capture extension as a manual fallback. The dashboard also includes a **Paste transcript** test bench.
 
 Follow [AUDIO_CAPTURE_SETUP.md](./AUDIO_CAPTURE_SETUP.md) to install and demo the Meet audio agent.
 
@@ -80,6 +82,10 @@ Install the companion Chrome extension, open a Meet, and click **Start MeetingOp
 - `POST /api/integrations/google-meet/subscribe` creates a Google Workspace Events subscription.
 - `GET /api/integrations/google-meet/status` returns the installed Workspace agent and watcher state.
 - `POST /api/integrations/google-meet/renew` renews the user-wide Workspace event subscription.
+- `GET|POST /api/integrations/capture-mode` reads or changes official, bot, or hybrid capture mode.
+- `GET /api/meet-bot/jobs?workerId=...` allows a browser worker to claim queued auto-join jobs.
+- `POST /api/meet-bot/jobs/:id` completes or fails a bot job.
+- `POST /api/meet-bot/complete` submits the bot's speaker-attributed caption transcript.
 - `GET /api/agent/runs` returns observable agent runs and stage logs.
 - `POST /api/agent/demo` triggers a simulated Google Meet event.
 - `POST /api/agent/demo-lifecycle` simulates the conference-start event that wakes the background agent.
@@ -133,7 +139,7 @@ Each analysis also produces a meeting-closure score that flags missing owners, m
 
 ```text
 Google Meet tab → Chrome extension → captured audio → Groq Whisper ┐
-Installed Workspace user → Workspace Events → Pub/Sub → webhook   ├→ agent runtime
+Workspace event → official transcript or auto-join Meet-bot       ├→ agent runtime
                                          ↓
 Transcript test bench ─────────────────────────────────────────────┘
                                          ↓
@@ -148,4 +154,4 @@ The app is built with Next.js, TypeScript, React, Groq/OpenAI-compatible structu
 
 ## Current scope
 
-MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently supports one installed Google Workspace user per deployment and keeps workspace memory in the browser. The Chrome extension captures combined tab audio after a user clicks Start; speaker identification is therefore best-effort. A production version would add tenant isolation, resumable uploads, durable agent-run storage, and queue-backed processing.
+MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently supports one installed Google Workspace user per deployment and keeps workspace memory in the browser. Auto-join requires a separately running browser worker and may require host admission. A production version would add tenant isolation, resumable uploads, durable agent-run storage, and a managed browser-worker fleet.

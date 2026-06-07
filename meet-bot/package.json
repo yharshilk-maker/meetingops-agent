@@ -1,0 +1,14 @@
+{
+  "name": "meetingops-meet-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node meet-bot.mjs",
+    "worker": "node worker.mjs",
+    "login": "node login.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.60.0"
+  }
+}
