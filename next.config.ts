@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Hide the dev overlay badge so screen recordings of /movie stay clean.
+  devIndicators: false,
 };
 
 export default nextConfig;

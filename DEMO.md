@@ -4,6 +4,30 @@
 
 Meeting summaries are passive documents. MeetingOps is an agent because it reacts to an event, retrieves its own context, reasons about operational state, plans actions, waits for approval, and carries approved knowledge into the next meeting.
 
+## Fastest path: the self-playing film (`/movie`)
+
+For a polished demo video with zero live clicking, open **`/movie`** (locally `http://localhost:3000/movie`, hosted `https://meetingops-production.up.railway.app/movie`).
+
+It is a ~70-second cinematic that runs itself:
+
+1. Opens on a live Google Meet — five people debating a conditional launch, captions appearing, the MeetingOps agent tile listening.
+2. The call ends and the agent **wakes automatically** from a Workspace event.
+3. It walks through every feature: transcript capture → evidence-grounded reasoning → operational brief + closure score → the human approval boundary → Drive result → Gmail draft → workspace memory + the auto-generated next agenda.
+4. Closes on the Observe → Reason → Act safely loop.
+
+### How to record it
+
+1. Open `/movie` in the browser.
+2. Press **F** for fullscreen (hides all browser chrome).
+3. Move the mouse away — the on-screen controls auto-hide after ~2.5s, leaving a clean frame.
+4. Start your screen recorder (QuickTime `Cmd+Shift+5` on macOS, or Loom). Capture the browser window or full screen.
+5. Press **R** (or reload) to restart the film from the top, then let it play through once.
+6. Stop recording at the closing card. Optionally record voiceover reading the bottom captions — they double as the narration script.
+
+Controls: **Space** pause/resume · **R** restart · **F** fullscreen. To re-record one section, append `?beat=approval` (or `?start=45000` in ms) to jump straight to it — beat ids: `meet`, `wake`, `capture`, `reason`, `brief`, `approval`, `drive`, `gmail`, `memory`, `outro`.
+
+The film uses representative data and triggers no external side effects, so it is always safe and identical every take.
+
 ## Recommended 7-minute demo
 
 ### 1. Frame the problem (45 seconds)

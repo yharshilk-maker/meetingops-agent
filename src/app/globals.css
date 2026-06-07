@@ -13,3 +13,16 @@ button { cursor: pointer; }
   from { opacity: 0; transform: scale(.985); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ---- Cinematic demo film (/movie) ---- */
+@keyframes cine-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cine-pop { 0% { opacity: 0; transform: scale(.9); } 60% { opacity: 1; transform: scale(1.03); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes cine-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cine-scale-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
+@keyframes orb-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(185,240,107,.55), 0 0 60px 10px rgba(185,240,107,.25); } 50% { box-shadow: 0 0 0 22px rgba(185,240,107,0), 0 0 90px 18px rgba(185,240,107,.4); } }
+@keyframes speak-ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(185,240,107,.65); } 50% { box-shadow: 0 0 0 7px rgba(185,240,107,0); } }
+@keyframes grow-bar { from { width: 0; } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes float-up { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes check-pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes sheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
