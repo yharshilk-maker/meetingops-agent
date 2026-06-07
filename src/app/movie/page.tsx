@@ -1,8 +1,10 @@
 "use client";
 
 import {
-  ArrowRight, Bot, CalendarDays, Check, Cloud, FolderOpen, Gauge, Mail, Mic,
-  Pause, Play, RotateCcw, ShieldCheck, Sparkles, Target, Video, Zap,
+  ArrowRight, Bot, CalendarDays, Check, ChevronRight, Clock, Cloud, Folder, Gauge, Hand,
+  HardDrive, Info, Mail, Maximize2, Menu, MessageSquare, Mic, MicOff, Minus, MoreVertical,
+  Paperclip, Pause, Pencil, Phone, Play, Plus, RotateCcw, Search, ShieldCheck, Sparkles,
+  Star, Target, Trash2, Users, Video, X, Zap, FileText,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -22,8 +24,8 @@ const BEATS: Beat[] = [
   { id: "reason", ms: 7200, chapter: "Reason", narration: "It reasons over the conversation, grounding every decision, task, and risk in a real quote." },
   { id: "brief", ms: 7600, chapter: "Brief", narration: "Minutes become an operational brief: decisions, owners, due dates, risks, and a closure score." },
   { id: "approval", ms: 6800, chapter: "Human approval", narration: "Then it stops. Every external action waits for your approval — nothing runs silently." },
-  { id: "drive", ms: 5400, chapter: "Drive", narration: "Approved, the evidence-backed brief is filed to the right Google Drive folder." },
-  { id: "gmail", ms: 5400, chapter: "Gmail", narration: "A follow-up email is drafted for the attendees — prepared, never auto-sent." },
+  { id: "drive", ms: 6000, chapter: "Google Drive", narration: "Once you approve, the agent files the brief right inside your Google Drive — created by MeetingOps, in the correct folder." },
+  { id: "gmail", ms: 6000, chapter: "Gmail", narration: "And it writes the follow-up as a real draft in your Gmail — waiting in Drafts, never sent automatically." },
   { id: "memory", ms: 7000, chapter: "Memory", narration: "Decisions become durable memory, changes are tracked across meetings, and the next agenda writes itself." },
   { id: "outro", ms: 5600, chapter: "MeetingOps", narration: "Observe. Reason. Act safely. The meeting agent that does the work after the meeting." },
 ];
@@ -70,7 +72,10 @@ export default function MoviePage() {
   const last = useRef<number>(0);
   const hideTimer = useRef<number | null>(null);
 
-  useEffect(() => { setElapsed(initialElapsed()); }, []);
+  useEffect(() => {
+    setElapsed(initialElapsed());
+    if (new URLSearchParams(window.location.search).get("pause") === "1") setPaused(true);
+  }, []);
 
   const restart = useCallback(() => { setElapsed(0); setDone(false); setPaused(false); last.current = 0; }, []);
 
@@ -143,8 +148,8 @@ export default function MoviePage() {
       </div>
 
       {/* stage */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-10 md:px-10">
-        <div className="h-full max-h-[680px] w-full max-w-[1180px]" key={beatIndex}>
+      <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 md:px-10">
+        <div className="w-full max-w-[1180px]" style={{ height: "min(680px, calc(100vh - 188px))" }} key={beatIndex}>
           {beat.id === "title" && <TitleScene />}
           {beat.id === "meet" && <MeetScene local={beatElapsed} />}
           {beat.id === "wake" && <WakeScene />}
@@ -198,58 +203,78 @@ function TitleScene() {
   );
 }
 
+function CtrlBtn({ children }: { children: React.ReactNode }) {
+  return <span className="grid size-11 place-items-center rounded-full bg-[#3c4043] text-white">{children}</span>;
+}
+
+function MeetEndScreen() {
+  return (
+    <div className="grid h-full place-items-center rounded-2xl bg-[#202124] text-center shadow-2xl animate-[cine-fade_.5s_ease-out]">
+      <div>
+        <h3 className="text-[26px] font-normal text-white">You left the meeting</h3>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button className="rounded-full border border-[#5f6368] px-6 py-2.5 text-sm font-medium text-[#8ab4f8]">Rejoin</button>
+          <button className="rounded-full bg-[#8ab4f8] px-6 py-2.5 text-sm font-medium text-[#202124]">Return to home screen</button>
+        </div>
+        <div className="mt-10 inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-4 py-2 text-[13px] text-white/70"><Bot size={15} className="text-[#b9f06b]" /> MeetingOps captured 14 turns · processing transcript…</div>
+      </div>
+    </div>
+  );
+}
+
 function MeetScene({ local }: { local: number }) {
   const revealWindow = 13800;
   const perLine = revealWindow / SCRIPT.length;
   const ended = local >= revealWindow + 200;
   const lineIndex = Math.min(SCRIPT.length - 1, Math.floor(local / perLine));
   const activeWho = ended ? -1 : SCRIPT[lineIndex].who;
-  const seconds = Math.min(58, 13 + Math.floor(local / 350));
+  if (ended) return <MeetEndScreen />;
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-[#1b231e] p-5 shadow-2xl">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold">CampusConnect — launch readiness</p>
-          <p className="mt-0.5 text-[11px] text-white/45">Google Meet · 5 participants · MeetingOps capturing</p>
-        </div>
-        <span className="flex items-center gap-2 rounded-full bg-[#d45b55] px-3 py-1.5 text-xs font-semibold"><span className="size-2 animate-pulse rounded-full bg-white" /> 00:{String(seconds).padStart(2, "0")}</span>
-      </div>
-      <div className="grid h-[calc(100%-56px)] grid-cols-3 grid-rows-2 gap-2.5">
+    <div className="relative h-full overflow-hidden rounded-2xl bg-[#202124] shadow-2xl">
+      <div className="grid h-full grid-cols-3 grid-rows-2 gap-2.5 p-2.5 pb-[72px]">
         {PARTICIPANTS.map((p, i) => {
           const speaking = i === activeWho;
-          // Has this person spoken at least once by now?
-          const spoke = SCRIPT.some((s, idx) => s.who === i && local >= idx * perLine);
           return (
-            <div key={p.name} className="relative grid place-items-center overflow-hidden rounded-xl bg-[#2a342d]">
-              <div className="grid size-16 place-items-center rounded-full text-lg font-semibold transition-transform md:size-[68px]" style={{ background: p.color, animation: speaking ? "speak-ring 1.1s ease-in-out infinite" : undefined, transform: speaking ? "scale(1.05)" : "scale(1)" }}>{p.initials}</div>
-              <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-md bg-black/40 px-1.5 py-0.5 text-[10px] font-medium backdrop-blur">{speaking && <Mic size={9} className="text-[#b9f06b]" />}{p.name}</div>
-              {speaking && (
-                <div className="absolute inset-x-2.5 bottom-2.5 rounded-lg bg-black/60 p-2 backdrop-blur animate-[cine-fade_.4s_ease-out]">
-                  <p className="text-[11px] leading-snug text-white/85">{SCRIPT[lineIndex].line}</p>
-                </div>
-              )}
-              {spoke && !speaking && <div className="absolute bottom-2.5 right-2.5"><Check size={12} className="text-[#b9f06b]/70" /></div>}
+            <div key={p.name} className="relative grid place-items-center overflow-hidden rounded-lg bg-[#3c4043]" style={{ boxShadow: speaking ? "inset 0 0 0 3px #8ab4f8" : undefined }}>
+              <div className="grid size-[68px] place-items-center rounded-full text-2xl font-medium text-white" style={{ background: p.color }}>{p.initials}</div>
+              <span className="absolute bottom-2 left-2.5 text-[13px] font-medium text-white drop-shadow">{p.name}</span>
+              <span className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full bg-black/40 text-white">{speaking ? <Mic size={13} /> : <MicOff size={13} className="text-white/60" />}</span>
             </div>
           );
         })}
-        {/* agent tile */}
-        <div className="relative grid place-items-center overflow-hidden rounded-xl border border-[#b9f06b]/40 bg-[#14221b]">
-          <div className="grid size-16 place-items-center rounded-full bg-[#b9f06b] text-[#172b21] animate-[orb-pulse_2.4s_ease-in-out_infinite] md:size-[68px]"><Bot size={30} /></div>
-          <div className="absolute inset-x-2.5 bottom-2.5">
-            <p className="text-[11px] font-semibold">MeetingOps Agent</p>
-            <p className="mt-0.5 flex items-center gap-1 text-[9px] text-[#b9f06b]"><span className="size-1.5 animate-pulse rounded-full bg-[#b9f06b]" /> Listening · building transcript</p>
-          </div>
+        {/* MeetingOps joins the call like a real AI notetaker */}
+        <div className="relative grid place-items-center overflow-hidden rounded-lg bg-[#243029] ring-1 ring-[#b9f06b]/40">
+          <div className="grid size-[68px] place-items-center rounded-full bg-[#b9f06b] text-[#12231b] animate-[orb-pulse_2.4s_ease-in-out_infinite]"><Bot size={32} /></div>
+          <span className="absolute bottom-2 left-2.5 flex items-center gap-1.5 text-[13px] font-medium text-white">MeetingOps <span className="rounded bg-[#b9f06b]/20 px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-wide text-[#b9f06b]">Notetaker</span></span>
+          <span className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-[9px] font-semibold text-[#b9f06b]"><span className="size-1.5 animate-pulse rounded-full bg-[#b9f06b]" /> REC</span>
         </div>
       </div>
-      {ended && (
-        <div className="absolute inset-0 grid place-items-center bg-[#0b1410]/80 backdrop-blur-sm animate-[cine-fade_.5s_ease-out]">
-          <div className="text-center">
-            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-full bg-white/10"><Video size={22} className="text-white/70" /></div>
-            <p className="text-lg font-semibold">Meeting ended</p>
-            <p className="mt-1 text-xs text-white/55">Everyone left the call · 14 turns captured</p>
-          </div>
+
+      {/* Google Meet live captions */}
+      {activeWho >= 0 && (
+        <div key={lineIndex} className="absolute bottom-[84px] left-1/2 w-[min(660px,88%)] -translate-x-1/2 rounded-lg bg-black/85 px-4 py-2.5 animate-[cine-fade_.35s_ease-out]">
+          <p className="text-[12px] font-semibold text-[#8ab4f8]">{PARTICIPANTS[activeWho].name}</p>
+          <p className="mt-0.5 text-[14px] leading-snug text-white">{SCRIPT[lineIndex].line}</p>
         </div>
       )}
+
+      {/* Meet control bar */}
+      <div className="absolute inset-x-0 bottom-0 flex h-[68px] items-center justify-between px-5">
+        <div className="flex items-center gap-2 text-[13px] text-white/85"><span>2:47 PM</span><span className="text-white/30">|</span><span className="text-white/60">cnx-mvty-qkp</span></div>
+        <div className="flex items-center gap-2.5">
+          <CtrlBtn><Mic size={18} /></CtrlBtn>
+          <CtrlBtn><Video size={18} /></CtrlBtn>
+          <CtrlBtn><span className="text-[11px] font-bold">CC</span></CtrlBtn>
+          <CtrlBtn><Hand size={18} /></CtrlBtn>
+          <CtrlBtn><MoreVertical size={18} /></CtrlBtn>
+          <span className="grid h-11 w-[68px] place-items-center rounded-full bg-[#ea4335] text-white"><Phone size={18} className="rotate-[135deg]" /></span>
+        </div>
+        <div className="flex items-center gap-3 text-white/80">
+          <span className="flex items-center gap-1.5"><Users size={18} /><span className="text-sm">6</span></span>
+          <MessageSquare size={18} />
+          <Info size={18} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -402,47 +427,131 @@ function ApprovalScene() {
   );
 }
 
-function DriveScene() {
+function DriveLogo() {
   return (
-    <LightCard className="!bg-[#edf2f7]">
-      <div className="mb-4 flex items-center justify-between"><div><Eyebrow tone="#3f5e8a">Google Drive · approved</Eyebrow><h2 className="mt-2 text-xl font-semibold">Evidence-backed brief, filed in the right folder</h2></div><span className="flex items-center gap-1.5 rounded-full bg-[#e6f4ea] px-3 py-1.5 text-xs font-semibold text-[#2f7d4e]" style={rise(2)}><span className="grid size-4 place-items-center rounded-full bg-[#2f7d4e] text-white" style={{ animation: "check-pop .4s ease-out both", animationDelay: ".5s" }}><Check size={10} /></span> Saved</span></div>
-      <div className="grid grid-cols-[230px_1fr] gap-4">
-        <div className="rounded-xl bg-white p-4 shadow-sm" style={rise(0)}>
-          <p className="mb-3 text-xs font-semibold">Drive folders</p>
-          {["MeetingOps", "Product", "CampusConnect", "2026-06-07 Launch Readiness"].map((f, i) => <div key={f} style={rise(i)} className={`mb-2 rounded-lg px-3 py-2 text-xs ${i === 3 ? "bg-[#e8f0fe] font-semibold text-[#2559a7]" : "bg-[#f6f8fa] text-[#5f6b74]"}`}>/{f}</div>)}
+    <svg width="22" height="20" viewBox="0 0 87.3 78" aria-hidden>
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47" />
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
+      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
+    </svg>
+  );
+}
+function DocIcon() { return <span className="grid size-5 place-items-center rounded-[3px] bg-[#4285f4]"><FileText size={12} className="text-white" /></span>; }
+
+function DriveScene() {
+  const rows = [
+    { kind: "doc", name: "CampusConnect Beta Launch Review", time: "12:47 PM", hot: true },
+    { kind: "folder", name: "Transcripts", time: "Jun 7, 2026", hot: false },
+    { kind: "folder", name: "Recordings", time: "Jun 7, 2026", hot: false },
+    { kind: "doc", name: "CampusConnect Roadmap Sync", time: "May 30, 2026", hot: false },
+  ];
+  const nav: [React.ReactNode, string, boolean][] = [
+    [<HardDrive size={18} key="a" />, "My Drive", true],
+    [<Users size={18} key="b" />, "Shared with me", false],
+    [<Clock size={18} key="c" />, "Recent", false],
+    [<Star size={18} key="d" />, "Starred", false],
+    [<Trash2 size={18} key="e" />, "Trash", false],
+  ];
+  return (
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-white text-[#202124] shadow-2xl animate-[cine-scale-in_.5s_ease-out]">
+      <div className="flex items-center gap-3 border-b border-[#e3e6ea] px-4 py-2.5">
+        <DriveLogo /><span className="text-[20px] text-[#5f6368]">Drive</span>
+        <div className="ml-4 flex max-w-xl flex-1 items-center gap-3 rounded-full bg-[#e9eef6] px-4 py-2.5"><Search size={18} className="text-[#5f6368]" /><span className="text-sm text-[#5f6368]">Search in Drive</span></div>
+        <div className="ml-auto flex items-center gap-3"><Info size={18} className="text-[#5f6368]" /><span className="grid size-8 place-items-center rounded-full bg-[#315f4b] text-xs font-semibold text-white">HY</span></div>
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-[208px] shrink-0 p-3">
+          <div className="mb-4 inline-flex items-center gap-3 rounded-2xl border border-[#dadce0] bg-white px-5 py-3 shadow-sm"><Plus size={20} className="text-[#1a73e8]" /><span className="text-sm font-medium text-[#3c4043]">New</span></div>
+          {nav.map(([icon, label, sel]) => (
+            <div key={label} className={`mb-0.5 flex items-center gap-3 rounded-full px-4 py-2 text-[13px] ${sel ? "bg-[#c2e7ff] font-medium text-[#001d35]" : "text-[#444746]"}`}>{icon}<span>{label}</span></div>
+          ))}
+          <div className="mt-4 px-4"><div className="h-1.5 rounded-full bg-[#e3e6ea]"><div className="h-full w-1/3 rounded-full bg-[#1a73e8]" /></div><p className="mt-2 text-[11px] text-[#5f6368]">5.1 GB of 15 GB used</p></div>
         </div>
-        <div className="rounded-xl bg-white p-5 shadow-sm" style={rise(1)}>
-          <div className="mb-4 flex items-center gap-3 border-b border-[#e6ebf0] pb-3"><FolderOpen size={18} className="text-[#3f5e8a]" /><div><p className="text-sm font-semibold">CampusConnect Beta Launch Review.md</p><p className="text-[10px] text-[#6d7882]">Created by MeetingOps · routed with 92% confidence</p></div></div>
-          <div className="grid grid-cols-2 gap-3 text-[10px] leading-4 text-[#4f5d66]">
-            {[["Summary", "June 18 target, June 25 fallback if QA or testers slip."], ["Decisions", "Disable Android push. Review June 16. Need 15 testers."], ["Tasks", "Maya retest · Nia recruiting · Rahul QA · Avery copy."], ["Evidence", "Every decision keeps its transcript speaker + quote."]].map(([t, b], i) => (
-              <div key={t} style={rise(i + 2)} className="rounded-lg border border-[#e6ebf0] bg-[#fbfcfd] p-3"><p className="mb-1 text-[10px] font-semibold text-[#2f4f70]">{t}</p><p>{b}</p></div>
-            ))}
-          </div>
+        <div className="flex-1 border-l border-[#e3e6ea] p-4">
+          <div className="mb-4 flex items-center gap-1 text-[19px] text-[#3c4043]">My Drive <ChevronRight size={17} className="text-[#5f6368]" /> MeetingOps <ChevronRight size={17} className="text-[#5f6368]" /> Product <ChevronRight size={17} className="text-[#5f6368]" /> <span className="font-medium text-[#202124]">CampusConnect</span></div>
+          <div className="grid grid-cols-[1fr_120px_150px] gap-3 border-b border-[#e3e6ea] px-3 pb-2 text-[12px] font-medium text-[#5f6368]"><span>Name</span><span>Owner</span><span>Last modified</span></div>
+          {rows.map((r, i) => (
+            <div key={r.name} style={rise(i)} className={`grid grid-cols-[1fr_120px_150px] items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] ${r.hot ? "bg-[#e8f0fe]" : ""}`}>
+              <span className="flex items-center gap-3">{r.kind === "doc" ? <DocIcon /> : <Folder size={20} className="text-[#5f6368]" fill="#5f6368" />}<span className="font-medium text-[#202124]">{r.name}</span>{r.hot && <span className="rounded bg-[#1a73e8] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">New</span>}</span>
+              <span className="text-[#5f6368]">me</span>
+              <span className="text-[#5f6368]">{r.hot ? "Just now" : r.time}</span>
+            </div>
+          ))}
+          <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#202124] px-3 py-2 text-[12px] text-white" style={rise(4)}><Bot size={14} className="text-[#b9f06b]" /> MeetingOps created &ldquo;CampusConnect Beta Launch Review&rdquo; <span className="ml-1 font-semibold text-[#8ab4f8]">Open</span></div>
         </div>
       </div>
-    </LightCard>
+    </div>
+  );
+}
+
+function GmailLogo() {
+  return (
+    <svg width="26" height="20" viewBox="0 0 24 18" aria-hidden>
+      <path d="M1.5 18h3.75V9L0 5.25v11.25C0 17.16.84 18 1.5 18z" fill="#4285f4" />
+      <path d="M18.75 18h3.75c.66 0 1.5-.84 1.5-1.5V5.25L18.75 9z" fill="#34a853" />
+      <path d="M18.75 1.5V9L24 5.25V2.25c0-2.07-2.37-3.26-3.9-2.03z" fill="#fbbc04" />
+      <path d="M5.25 9V3.04L12 8.1l6.75-5.06V9L12 14.06z" fill="#ea4335" />
+      <path d="M0 2.25v3L5.25 9V1.5L3.9.47C2.37-.76 0 .18 0 2.25z" fill="#c5221f" />
+    </svg>
   );
 }
 
 function GmailScene() {
+  const mail: [string, string, boolean][] = [["Inbox", "12", false], ["Starred", "", false], ["Sent", "", false], ["Drafts", "1", true]];
   return (
-    <LightCard>
-      <div className="mb-4 flex items-center justify-between"><div><Eyebrow tone="#ad493e">Gmail · draft only</Eyebrow><h2 className="mt-2 text-xl font-semibold">Follow-up email prepared, never auto-sent</h2></div><span className="tag !bg-[#fff0ee] !text-[#ad493e]">Drafts</span></div>
-      <div className="mx-auto max-w-3xl rounded-2xl border border-[#e1d6d3] bg-white shadow-sm" style={rise(0)}>
-        <div className="border-b border-[#eee5e2] p-4"><p className="text-xs text-[#746864]">To: Harshil, Maya, Avery, Rahul, Nia</p><p className="mt-1.5 text-sm font-semibold">CampusConnect beta recap: June 18 target, owners, and fallback criteria</p></div>
-        <div className="p-5 text-xs leading-6 text-[#4f5d55]">
-          <p>Hi team,</p>
-          <p className="mt-2">MeetingOps captured today&apos;s launch-readiness decisions and prepared this draft for review.</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li style={rise(1)}><strong>Decision:</strong> June 18 target; June 25 fallback if QA or tester count misses.</li>
-            <li style={rise(2)}><strong>Maya:</strong> disable Android push for beta and retest by June 15.</li>
-            <li style={rise(3)}><strong>Nia:</strong> recruit student orgs to 15 confirmed testers by June 14.</li>
-            <li style={rise(4)}><strong>Rahul:</strong> finish QA on saved-event analytics funnels before review.</li>
-          </ul>
-          <p className="mt-2 text-[#8a6a25]">Draft only — MeetingOps never sends automatically.</p>
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-[#f6f8fc] text-[#202124] shadow-2xl animate-[cine-scale-in_.5s_ease-out]">
+      <div className="flex items-center gap-4 px-4 py-2.5">
+        <Menu size={20} className="text-[#5f6368]" />
+        <span className="flex items-center gap-2"><GmailLogo /><span className="text-[20px] text-[#5f6368]">Gmail</span></span>
+        <div className="ml-2 flex max-w-2xl flex-1 items-center gap-3 rounded-full bg-[#eaf1fb] px-4 py-2.5"><Search size={18} className="text-[#5f6368]" /><span className="text-sm text-[#5f6368]">Search mail</span></div>
+        <span className="ml-auto grid size-8 place-items-center rounded-full bg-[#315f4b] text-xs font-semibold text-white">HY</span>
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-[200px] shrink-0 p-3">
+          <div className="mb-4 inline-flex items-center gap-3 rounded-2xl bg-[#c2e7ff] px-5 py-3.5 shadow-sm"><Pencil size={18} className="text-[#001d35]" /><span className="text-sm font-medium text-[#001d35]">Compose</span></div>
+          {mail.map(([label, badge, hot]) => (
+            <div key={label} className={`mb-0.5 flex items-center justify-between rounded-r-full px-5 py-1.5 text-[13px] ${hot ? "bg-[#fce8e6] font-semibold text-[#202124]" : "text-[#444746]"}`}><span>{label}</span>{badge ? <span className={hot ? "text-[#d93025]" : "text-[#5f6368]"}>{badge}</span> : null}</div>
+          ))}
+        </div>
+        <div className="flex-1 border-l border-[#e3e6ea] bg-white">
+          {["Maya Kapoor", "Avery Park", "Rahul Nair", "Nia Santos"].map((n, i) => (
+            <div key={n} className="flex items-center gap-4 border-b border-[#f1f3f4] px-5 py-3 text-[13px] opacity-50">
+              <Star size={16} className="text-[#dadce0]" />
+              <span className="w-32 font-medium text-[#202124]">{n}</span>
+              <span className="truncate text-[#5f6368]">CampusConnect — {["push timing", "known-issues copy", "analytics QA", "tester recruiting"][i]}</span>
+              <span className="ml-auto text-[12px] text-[#5f6368]">2:4{i} PM</span>
+            </div>
+          ))}
         </div>
       </div>
-    </LightCard>
+      {/* the agent's draft, docked like a real Gmail compose window */}
+      <div className="absolute bottom-0 right-8 w-[470px] overflow-hidden rounded-t-lg bg-white shadow-2xl ring-1 ring-black/10" style={rise(0)}>
+        <div className="flex items-center justify-between bg-[#404040] px-4 py-2 text-white"><span className="text-[13px] font-medium">New Message</span><span className="flex items-center gap-3 text-white/80"><Minus size={14} /><Maximize2 size={13} /><X size={14} /></span></div>
+        <div className="px-4">
+          <div className="border-b border-[#e8eaed] py-2 text-[13px] text-[#5f6368]">To: Harshil, Maya, Avery, Rahul, Nia</div>
+          <div className="border-b border-[#e8eaed] py-2 text-[13px] font-medium text-[#202124]">CampusConnect beta recap — June 18 target, owners, fallback</div>
+          <div className="py-3 text-[12px] leading-5 text-[#3c4043]">
+            <p>Hi team,</p>
+            <p className="mt-1.5">MeetingOps captured today&apos;s launch-readiness decisions:</p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
+              <li style={rise(1)}><strong>Decision:</strong> June 18 target; June 25 fallback.</li>
+              <li style={rise(2)}><strong>Maya:</strong> disable Android push, retest by Jun 15.</li>
+              <li style={rise(3)}><strong>Nia:</strong> recruit to 15 testers by Jun 14.</li>
+            </ul>
+            <p className="mt-1.5">Next review: June 16.</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="flex items-center gap-3"><span className="rounded-full bg-[#0b57d0] px-5 py-2 text-[13px] font-medium text-white">Send</span><Paperclip size={17} className="text-[#5f6368]" /></span>
+          <span className="flex items-center gap-1.5 text-[11px] text-[#5f6368]"><Check size={13} className="text-[#188038]" /> Saved to Drafts</span>
+        </div>
+      </div>
+      {/* agent attribution */}
+      <div className="absolute left-1/2 top-[64px] -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-[#202124] px-3 py-1.5 text-[12px] text-white shadow-lg" style={rise(2)}><Bot size={13} className="text-[#b9f06b]" /> Drafted by MeetingOps agent · not sent</div>
+    </div>
   );
 }
 
