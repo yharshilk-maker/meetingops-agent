@@ -4,6 +4,8 @@
 
 MeetingOps listens for Google Meet transcript events, retrieves the transcript itself, reasons over what changed, and prepares controlled follow-up actions. It goes beyond meeting summaries by maintaining workspace memory, surfacing unresolved risks, and requiring human approval before external actions.
 
+**Live demo:** [meetingops-production.up.railway.app](https://meetingops-production.up.railway.app)
+
 ## Why it is an agent
 
 MeetingOps runs an observable workflow rather than waiting for a user to manually organize notes:
