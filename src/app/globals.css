@@ -9,3 +9,7 @@ button { cursor: pointer; }
 .icon-button { display: inline-grid; width: 2.35rem; height: 2.35rem; place-items: center; border: 1px solid #d8dfda; border-radius: .65rem; background: white; color: #607168; transition: 160ms ease; }
 .icon-button:hover { border-color: #aebdb3; color: #253b2e; }
 .tag { display: inline-flex; align-items: center; gap: .28rem; white-space: nowrap; border-radius: 999px; background: #eef3ef; padding: .28rem .5rem; color: #617269; font-size: .62rem; font-weight: 600; text-transform: capitalize; }
+@keyframes demo-enter {
+  from { opacity: 0; transform: scale(.985); }
+  to { opacity: 1; transform: scale(1); }
+}
