@@ -2,7 +2,7 @@
 
 import {
   Activity, ArrowRight, Bot, CalendarDays, Check, ChevronRight, CircleAlert, Clock3, Cloud, Gauge,
-  FolderOpen, LayoutDashboard, Mail, MessageSquareText,
+  Clapperboard, FolderOpen, LayoutDashboard, Mail, MessageSquareText,
   RotateCcw, Search, ShieldCheck, Sparkles, Target, Users,
   WandSparkles, X, Zap,
 } from "lucide-react";
@@ -45,6 +45,7 @@ export default function Home() {
   const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
   const [showIngest, setShowIngest] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showDemoStudio, setShowDemoStudio] = useState(false);
   const [showTestBench, setShowTestBench] = useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -155,6 +156,59 @@ export default function Home() {
     setView("dashboard");
   }
 
+  function primeShowcase() {
+    const first = analyzeTranscript(DEMO_MEETINGS[0], INITIAL_WORKSPACE);
+    first.reasoningMode = "structured_llm";
+    first.actions = first.actions.map((action) => ({
+      ...action,
+      status: "completed",
+      result: action.type === "drive_save"
+        ? { mode: "demo", message: "Meeting packet saved to the MeetingOps Drive folder." }
+        : action.type === "gmail_draft"
+          ? { mode: "demo", message: "Attendee follow-up prepared in Gmail Drafts." }
+          : { mode: "local", message: "Workspace memory update approved." },
+    }));
+    const nextWorkspace = applyMeetingToWorkspace(INITIAL_WORKSPACE, first);
+    const second = analyzeTranscript(DEMO_MEETINGS[1], nextWorkspace);
+    second.reasoningMode = "structured_llm";
+    second.changes = generateWorkspaceChanges(nextWorkspace, second);
+    const now = new Date().toISOString();
+    const runs: AgentRun[] = [
+      {
+        id: "demo-showcase-followup",
+        stage: "awaiting_approval",
+        startedAt: now,
+        reasoningMode: "structured_llm",
+        reasoningProvider: "groq",
+        reasoningModel: "openai/gpt-oss-20b",
+        meeting: second,
+        log: [
+          { stage: "event_received", message: "Google Meet transcript-ready event received.", at: now },
+          { stage: "fetching_transcript", message: `Parsed ${second.transcript.length} official transcript entries.`, at: now },
+          { stage: "analyzing", message: "Structured reasoning extracted decisions, risks, tasks, and SPICED context.", at: now },
+          { stage: "planning_actions", message: "Prepared Drive, Gmail, memory, and next-meeting follow-through.", at: now },
+          { stage: "awaiting_approval", message: "External actions are paused for human approval.", at: now },
+        ],
+      },
+      {
+        id: "demo-showcase-wake",
+        stage: "observing",
+        startedAt: now,
+        eventType: "google.workspace.meet.conference.v2.started",
+        log: [
+          { stage: "event_received", message: "Workspace event woke MeetingOps as the meeting started.", at: now },
+          { stage: "observing", message: "Hybrid capture is ready: official transcript preferred, Meet-bot available as fallback.", at: now },
+        ],
+      },
+    ];
+    setWorkspace(nextWorkspace);
+    setMeetings([second, first]);
+    setAgentRuns(runs);
+    setActiveMeetingId(second.id);
+    setShowDemoStudio(false);
+    setView("meeting");
+  }
+
   return (
     <div className="min-h-screen bg-[#f5f6f8] text-[#17211b]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] flex-col border-r border-[#dfe4e1] bg-[#12231b] px-4 py-5 text-white lg:flex">
@@ -184,7 +238,7 @@ export default function Home() {
       <main className="min-h-screen lg:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dfe4e1] bg-[#f5f6f8]/90 px-5 backdrop-blur-xl md:px-8">
           <div className="flex items-center gap-2 text-sm text-[#6d7872]"><span>MeetingOps</span><ChevronRight size={14} /><span className="font-medium text-[#26352d]">{view === "meeting" ? activeMeeting?.title : view === "workspace" ? workspace.name : view === "actions" ? "Action center" : view === "runs" ? "Agent runs" : "Overview"}</span></div>
-          <div className="flex items-center gap-2"><button onClick={() => setShowIntegrations(true)} className="icon-button" title="Integrations"><Cloud size={15} /></button><button onClick={() => setView("runs")} className="icon-button" title="Agent runs"><Activity size={15} /></button><button onClick={() => setView("actions")} className="icon-button" title="Action center"><ShieldCheck size={15} /></button><button onClick={resetDemo} className="icon-button" title="Reset demo"><RotateCcw size={15} /></button><button onClick={() => setShowTestBench(true)} className="primary-button !bg-[#476252]"><MessageSquareText size={16} /> Paste transcript</button><button onClick={() => setShowIngest(true)} className="primary-button"><Zap size={16} /> Simulate Meet event</button></div>
+          <div className="flex items-center gap-2"><button onClick={() => setShowIntegrations(true)} className="icon-button" title="Integrations"><Cloud size={15} /></button><button onClick={() => setView("runs")} className="icon-button" title="Agent runs"><Activity size={15} /></button><button onClick={() => setView("actions")} className="icon-button" title="Action center"><ShieldCheck size={15} /></button><button onClick={resetDemo} className="icon-button" title="Reset demo"><RotateCcw size={15} /></button><button onClick={() => setShowDemoStudio(true)} className="primary-button !bg-[#172b21]"><Clapperboard size={16} /> Demo studio</button><button onClick={() => setShowTestBench(true)} className="primary-button !bg-[#476252]"><MessageSquareText size={16} /> Paste transcript</button><button onClick={() => setShowIngest(true)} className="primary-button"><Zap size={16} /> Simulate Meet event</button></div>
         </header>
         {view === "dashboard" && <Dashboard meetings={meetings} workspace={workspace} runs={agentRuns} googleConnected={googleConnected} workspaceAgentActive={workspaceAgentActive} pending={pendingActions.length} onNew={() => setShowIngest(true)} onOpen={(id) => { setActiveMeetingId(id); setView("meeting"); }} />}
         {view === "meeting" && activeMeeting && <MeetingView meeting={activeMeeting} onApprove={(m, a) => setActionStatus(m, a, "completed")} onReject={(m, a) => setActionStatus(m, a, "rejected")} onOpenWorkspace={() => setView("workspace")} />}
@@ -194,6 +248,7 @@ export default function Home() {
       </main>
       {showIngest && <IngestModal meetings={meetings} onClose={() => setShowIngest(false)} onSelect={ingestDemo} onWake={simulateWorkspaceWake} />}
       {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
+      {showDemoStudio && <DemoStudioModal onClose={() => setShowDemoStudio(false)} onPrime={primeShowcase} onReset={resetDemo} />}
       {showTestBench && <TestBenchModal onClose={() => setShowTestBench(false)} onComplete={acceptRun} />}
     </div>
   );
@@ -286,6 +341,17 @@ function ActionsView({ meetings, onApprove, onReject, onOpenWorkspace }: { meeti
 function IngestModal({ meetings, onClose, onSelect, onWake }: { meetings: Meeting[]; onClose: () => void; onSelect: (index: number) => void; onWake: () => void }) {
   const next = meetings.some((meeting) => meeting.id === "roadmap-1") ? 1 : 0;
   return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white p-6 shadow-2xl md:p-7"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Google Meet event simulator</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Observe the background agent lifecycle</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Simulate the Workspace events that wake MeetingOps and later deliver the final transcript.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><button onClick={onWake} className="mb-4 flex w-full items-center gap-3 rounded-xl border border-[#9fbd79] bg-[#f0f8e6] p-4 text-left"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#587461]"><Activity size={16} /></div><div className="flex-1"><p className="text-sm font-semibold">Simulate conference started</p><p className="mt-1 text-xs text-[#66736b]">Show MeetingOps waking automatically when an owned Google Meet begins.</p></div><ChevronRight size={16} /></button><div className="space-y-3">{DEMO_MEETINGS.map((meeting, index) => { const done = meetings.some((item) => item.id === meeting.id); return <button key={meeting.id} onClick={() => onSelect(index)} className={`group w-full rounded-xl border p-4 text-left transition ${index === next ? "border-[#9fbd79] bg-[#f0f8e6]" : "border-[#dde3df] bg-[#f9faf9]"}`}><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#587461]"><Zap size={16} /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{meeting.title}</p>{index === next && <span className="tag">Recommended next</span>}{done && <span className="tag"><Check size={10} /> processed</span>}</div><p className="mt-1 text-xs text-[#7b8780]">{meeting.date} · Google Meet · transcript generated</p><p className="mt-2 text-xs leading-5 text-[#66736b]">The agent receives the event, retrieves {meeting.transcript.length} transcript entries, and begins its workflow.</p></div><ChevronRight size={16} className="mt-2 text-[#87938c]" /></div></button>; })}</div><div className="mt-5 rounded-xl bg-[#f4f6f4] p-3 text-[11px] leading-5 text-[#76827b]"><strong className="font-semibold text-[#52645a]">Production path:</strong> owned Meet space → Workspace Events API → Pub/Sub → Railway agent runtime → Drive and Gmail.</div></div></div>;
+}
+
+function DemoStudioModal({ onClose, onPrime, onReset }: { onClose: () => void; onPrime: () => void; onReset: () => void }) {
+  const shots = [
+    { time: "0:00", title: "Open on the brief", line: "MeetingOps turns a finished meeting into operational follow-through, not just notes." },
+    { time: "0:15", title: "Show agenda + closure score", line: "It identifies what is unresolved and proactively prepares the next meeting." },
+    { time: "0:35", title: "Open What changed", line: "Across meetings, it reconciles decisions, blockers, owners, scope, and risk." },
+    { time: "0:55", title: "Open Agent runs", line: "Every autonomous step is observable, and external actions stop for approval." },
+    { time: "1:15", title: "Open Action center + Workspace brain", line: "Approved work flows into Drive, Gmail drafts, and a living workspace memory." },
+  ];
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/65 p-4 backdrop-blur-sm"><div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/15 bg-[#f7f8f7] shadow-2xl"><div className="flex flex-col gap-5 border-b border-[#dce2de] bg-[#172b21] p-6 text-white md:flex-row md:items-center md:justify-between"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#b9f06b]"><Clapperboard size={14} /> Recording cockpit</div><h2 className="text-xl font-semibold">Prime the strongest MeetingOps story</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[#bdc9c2]">Stages two connected meetings, completed first-meeting actions, workspace memory, change detection, agent observability, and a follow-up approval queue. No external side effects.</p></div><button onClick={onClose} className="icon-button !border-white/15 !bg-white/10 !text-white"><X size={15} /></button></div><div className="grid gap-6 p-6 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-center justify-between"><div><p className="text-sm font-semibold">90-second shot list</p><p className="mt-1 text-xs text-[#748078]">Follow this order and the product tells the story for you.</p></div><span className="tag">5 shots</span></div><div className="overflow-hidden rounded-xl border border-[#dce2de] bg-white">{shots.map((shot, index) => <div key={shot.time} className="grid grid-cols-[48px_1fr] gap-3 border-b border-[#edf0ee] p-4 last:border-0"><span className="text-xs font-semibold text-[#4f735d]">{shot.time}</span><div><p className="text-xs font-semibold">{index + 1}. {shot.title}</p><p className="mt-1 text-[11px] leading-5 text-[#718078]">“{shot.line}”</p></div></div>)}</div></section><aside className="space-y-4"><div className="rounded-xl border border-[#b9d59d] bg-[#eef8e4] p-5"><p className="text-sm font-semibold">Ready-to-film state</p><div className="mt-4 space-y-2 text-xs text-[#5f7066]"><p className="flex gap-2"><Check size={14} className="shrink-0 text-[#5f8a4d]" /> Two meetings with cross-meeting changes</p><p className="flex gap-2"><Check size={14} className="shrink-0 text-[#5f8a4d]" /> Approved Drive, Gmail, and memory results</p><p className="flex gap-2"><Check size={14} className="shrink-0 text-[#5f8a4d]" /> Pending follow-up actions for approval</p><p className="flex gap-2"><Check size={14} className="shrink-0 text-[#5f8a4d]" /> Agent run timeline and proactive agenda</p></div><button onClick={onPrime} className="primary-button mt-5 w-full justify-center"><Clapperboard size={15} /> Prime showcase</button></div><div className="rounded-xl border border-[#e3d6a5] bg-[#fff9e7] p-4"><p className="text-xs font-semibold text-[#6d5927]">Recording recovery</p><p className="mt-1 text-[11px] leading-5 text-[#806e3c]">Made a wrong click? Prime showcase again. It restores the same reliable starting state without touching Google Drive or Gmail.</p><button onClick={() => { onReset(); onClose(); }} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#6d5927]"><RotateCcw size={13} /> Start from empty dashboard</button></div></aside></div></div></div>;
 }
 
 function IntegrationsModal({ onClose }: { onClose: () => void }) {
