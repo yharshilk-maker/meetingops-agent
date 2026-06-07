@@ -1,7 +1,14 @@
 export type EvidenceItem = { text: string; evidence: string; speaker: string };
 export type Task = { id: string; text: string; owner: string; dueDate: string; status: "open" | "done" };
 export type Change = { field: string; label: string; before: string; after: string; evidence: string; confidence: number };
-export type ProposedAction = { id: string; type: "drive_save" | "gmail_draft" | "memory_update"; title: string; description: string; status: "needs_approval" | "completed" | "rejected" };
+export type ProposedAction = {
+  id: string;
+  type: "drive_save" | "gmail_draft" | "memory_update";
+  title: string;
+  description: string;
+  status: "needs_approval" | "completed" | "rejected";
+  result?: { mode?: string; message?: string; webViewLink?: string; webUrl?: string; fileId?: string; folderId?: string; id?: string };
+};
 export type TranscriptLine = { speaker: string; text: string };
 export type MeetingInput = { id: string; title: string; date: string; participants: string[]; transcript: TranscriptLine[] };
 export type Meeting = MeetingInput & {

@@ -53,9 +53,10 @@ export async function createGmailFollowUpDraft(meeting: Meeting, accessToken: st
   const decisions = meeting.decisions.map((item) => `- ${item.text}`).join("\n");
   const message = [`To: ${recipients}`, `Subject: Recap: ${meeting.title}`, "Content-Type: text/plain; charset=UTF-8", "", meeting.summary, "", "Decisions:", decisions, "", "Action items:", actions].join("\r\n");
   const raw = Buffer.from(message).toString("base64url");
-  return googleRequest<{ id: string; message: { id: string } }>(`${GMAIL_API}/drafts`, accessToken, {
+  const draft = await googleRequest<{ id: string; message: { id: string } }>(`${GMAIL_API}/drafts`, accessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: { raw } }),
   });
+  return { ...draft, webUrl: "https://mail.google.com/mail/u/0/#drafts" };
 }
