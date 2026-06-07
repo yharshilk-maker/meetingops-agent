@@ -1,8 +1,8 @@
-import { GoogleMeetTranscriptEvent, fetchGoogleMeetTranscript } from "@/lib/agent/google-meet";
+import { GoogleMeetEvent, fetchGoogleMeetTranscript } from "@/lib/agent/google-meet";
 import { analyzeWithLlm } from "@/lib/agent/llm";
 import { DEMO_MEETINGS, INITIAL_WORKSPACE, Meeting, analyzeTranscript, meetingFromAnalysis } from "@/lib/meeting-engine";
 
-export type AgentStage = "idle" | "event_received" | "fetching_transcript" | "analyzing" | "planning_actions" | "awaiting_approval" | "failed";
+export type AgentStage = "idle" | "event_received" | "observing" | "fetching_transcript" | "analyzing" | "planning_actions" | "awaiting_approval" | "completed" | "failed";
 export type AgentRun = {
   id: string;
   provider: "google_meet" | "manual_test";
@@ -10,6 +10,7 @@ export type AgentRun = {
   startedAt: string;
   completedAt?: string;
   conferenceRecord?: string;
+  eventType?: string;
   log: { stage: AgentStage; message: string; at: string }[];
   meeting?: Meeting;
   reasoningMode?: "structured_llm" | "deterministic_fallback";
@@ -73,28 +74,56 @@ export async function processManualTranscript(input: import("@/lib/meeting-engin
   }
 }
 
-export async function processGoogleMeetEvent(event: GoogleMeetTranscriptEvent, accessToken?: string) {
-  if (event.type !== "google.workspace.meet.transcript.v2.fileGenerated") {
-    throw new Error(`Unsupported event type: ${event.type}`);
-  }
-  const eventId = event.id ?? event.data.transcript?.name;
+export async function processGoogleMeetEvent(event: GoogleMeetEvent, accessToken?: string) {
+  const eventId = event.id ?? event.data.transcript?.name ?? event.data.participantSession?.name ?? `${event.type}:${event.data.conferenceRecord?.name}`;
   if (eventId && state.meetingOpsEventIds?.has(eventId)) {
     const existing = state.meetingOpsRuns?.find((item) => item.conferenceRecord === event.data.conferenceRecord?.name);
     if (existing) return existing;
   }
   if (eventId) state.meetingOpsEventIds?.add(eventId);
-  const run: AgentRun = {
+  const existingRun = state.meetingOpsRuns?.find((item) =>
+    item.provider === "google_meet" &&
+    item.conferenceRecord === event.data.conferenceRecord?.name &&
+    !item.meeting);
+  const run: AgentRun = existingRun ?? {
     id: crypto.randomUUID(),
     provider: "google_meet",
     stage: "event_received",
     startedAt: new Date().toISOString(),
     conferenceRecord: event.data.conferenceRecord?.name,
+    eventType: event.type,
     log: [],
   };
-  state.meetingOpsRuns = [run, ...(state.meetingOpsRuns ?? [])].slice(0, 20);
+  run.eventType = event.type;
+  if (!existingRun) state.meetingOpsRuns = [run, ...(state.meetingOpsRuns ?? [])].slice(0, 20);
 
   try {
-    addLog(run, "event_received", "Google Meet transcript-ready event received.");
+    addLog(run, "event_received", `Google Workspace event received: ${event.type}.`);
+    if (event.type === "google.workspace.meet.conference.v2.started") {
+      addLog(run, "observing", "MeetingOps is awake and observing this active Google Meet conference.");
+      return run;
+    }
+    if (event.type === "google.workspace.meet.participant.v2.joined") {
+      addLog(run, "observing", "A participant joined. MeetingOps updated the live conference activity.");
+      return run;
+    }
+    if (event.type === "google.workspace.meet.participant.v2.left") {
+      addLog(run, "observing", "A participant left. MeetingOps updated the live conference activity.");
+      return run;
+    }
+    if (event.type === "google.workspace.meet.transcript.v2.started") {
+      addLog(run, "observing", "Google Meet transcription started. MeetingOps is waiting for the final transcript artifact.");
+      return run;
+    }
+    if (event.type === "google.workspace.meet.transcript.v2.ended") {
+      addLog(run, "observing", "Google Meet transcription ended. MeetingOps is waiting for Google to generate the transcript file.");
+      return run;
+    }
+    if (event.type === "google.workspace.meet.conference.v2.ended") {
+      addLog(run, "completed", "The conference ended. MeetingOps remains ready for the transcript-generated event.");
+      run.completedAt = new Date().toISOString();
+      return run;
+    }
     addLog(run, "fetching_transcript", "Fetching transcript entries from Google Meet.");
     let input = event.data.demoMeeting;
     if (!input) {
@@ -116,7 +145,7 @@ export async function processGoogleMeetEvent(event: GoogleMeetTranscriptEvent, a
   }
 }
 
-export function demoMeetEvent(index: number): GoogleMeetTranscriptEvent {
+export function demoMeetEvent(index: number): GoogleMeetEvent {
   return {
     type: "google.workspace.meet.transcript.v2.fileGenerated",
     subject: `//meet.googleapis.com/spaces/demo-${index + 1}`,

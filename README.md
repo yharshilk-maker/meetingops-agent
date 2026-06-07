@@ -20,6 +20,7 @@ The agent uses evidence-backed structured reasoning, has a deterministic fallbac
 ## Highlights
 
 - Automatically receives Google Meet transcript-ready events through Workspace Events and Pub/Sub.
+- Installs a user-wide Workspace watcher that wakes on conferences, participants, and transcript activity across Meet spaces the connected user owns.
 - Extracts summaries, decisions, owners, deadlines, tasks, risks, and open questions.
 - Applies the SPICED framework and calculates a meeting-closure score.
 - Grounds decisions and risks in quoted transcript evidence.
@@ -68,14 +69,17 @@ Google Meet transcription must be enabled for the autonomous meeting flow. The d
 
 ### Live Google Meet story
 
-Connect Google Workspace, activate a Meet watcher, run a transcribed meeting in the monitored space, and end the call. Google publishes the transcript-ready event and MeetingOps processes it without a transcript upload.
+Connect Google Workspace and install the Workspace agent once. MeetingOps subscribes to all Meet spaces owned by the connected user, wakes when a conference starts, observes participant and transcript lifecycle events, and processes the final transcript without an upload.
 
 ## Agent endpoints
 
 - `POST /api/webhooks/google-meet` receives `google.workspace.meet.transcript.v2.fileGenerated`.
 - `POST /api/integrations/google-meet/subscribe` creates a Google Workspace Events subscription.
+- `GET /api/integrations/google-meet/status` returns the installed Workspace agent and watcher state.
+- `POST /api/integrations/google-meet/renew` renews the user-wide Workspace event subscription.
 - `GET /api/agent/runs` returns observable agent runs and stage logs.
 - `POST /api/agent/demo` triggers a simulated Google Meet event.
+- `POST /api/agent/demo-lifecycle` simulates the conference-start event that wakes the background agent.
 - `POST /api/agent/analyze-transcript` runs the post-transcript agent workflow from the test bench.
 
 ## Production setup
@@ -120,7 +124,7 @@ Each analysis also produces a meeting-closure score that flags missing owners, m
 ## Architecture
 
 ```text
-Google Meet → Workspace Events → Pub/Sub → webhook
+Installed Workspace user → owned Google Meet spaces → Workspace Events → Pub/Sub → webhook
                                          ↓
 Transcript test bench ───────────────→ agent runtime
                                          ↓
@@ -135,4 +139,4 @@ The app is built with Next.js, TypeScript, React, Groq/OpenAI-compatible structu
 
 ## Current scope
 
-MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently assumes one connected Google account and keeps workspace memory in the browser. The deployment guide describes the persistence, authentication, subscription-renewal, and queueing work needed for a multi-user production service.
+MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently supports one installed Google Workspace user per deployment and keeps workspace memory in the browser. It wakes on conference activity but processes the Google-generated transcript after the meeting; joining visibly and consuming live audio requires the Developer Preview Meet Media API. The deployment guide describes the persistence, authentication, tenant isolation, and queueing work needed for a multi-user production service.

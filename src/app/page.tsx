@@ -20,8 +20,20 @@ type AgentRun = {
   reasoningMode?: "structured_llm" | "deterministic_fallback";
   reasoningProvider?: "groq" | "openai";
   reasoningModel?: string;
+  eventType?: string;
   log: { stage: string; message: string; at: string }[];
   meeting?: Meeting;
+};
+type WorkspaceAgentStatus = {
+  configured: boolean;
+  connected: boolean;
+  identity?: { email?: string; name?: string };
+  watcher?: {
+    state: "activating" | "active" | "needs_renewal" | "error";
+    mode: "workspace_user" | "meeting_space";
+    expireTime?: string;
+    targetResource: string;
+  };
 };
 
 export default function Home() {
@@ -34,12 +46,16 @@ export default function Home() {
   const [showTestBench, setShowTestBench] = useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
+  const [workspaceAgentActive, setWorkspaceAgentActive] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/google/status")
+    fetch("/api/integrations/google-meet/status")
       .then((response) => response.json())
-      .then((status) => setGoogleConnected(Boolean(status.connected)))
-      .catch(() => setGoogleConnected(false));
+      .then((status: WorkspaceAgentStatus) => {
+        setGoogleConnected(Boolean(status.connected));
+        setWorkspaceAgentActive(status.watcher?.state === "active" || status.watcher?.state === "activating");
+      })
+      .catch(() => { setGoogleConnected(false); setWorkspaceAgentActive(false); });
   }, [showIntegrations]);
 
   useEffect(() => {
@@ -85,6 +101,18 @@ export default function Home() {
     setActiveMeetingId(meeting.id);
     setShowIngest(false);
     setView("meeting");
+  }
+
+  async function simulateWorkspaceWake() {
+    const response = await fetch("/api/agent/demo-lifecycle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "google.workspace.meet.conference.v2.started" }),
+    });
+    const run = await response.json() as AgentRun;
+    setAgentRuns((current) => [run, ...current.filter((item) => item.id !== run.id)]);
+    setShowIngest(false);
+    setView("runs");
   }
 
   function acceptRun(run: AgentRun) {
@@ -154,13 +182,13 @@ export default function Home() {
           <div className="flex items-center gap-2 text-sm text-[#6d7872]"><span>MeetingOps</span><ChevronRight size={14} /><span className="font-medium text-[#26352d]">{view === "meeting" ? activeMeeting?.title : view === "workspace" ? workspace.name : view === "actions" ? "Action center" : view === "runs" ? "Agent runs" : "Overview"}</span></div>
           <div className="flex items-center gap-2"><button onClick={() => setShowIntegrations(true)} className="icon-button" title="Integrations"><Cloud size={15} /></button><button onClick={() => setView("runs")} className="icon-button" title="Agent runs"><Activity size={15} /></button><button onClick={() => setView("actions")} className="icon-button" title="Action center"><ShieldCheck size={15} /></button><button onClick={resetDemo} className="icon-button" title="Reset demo"><RotateCcw size={15} /></button><button onClick={() => setShowTestBench(true)} className="primary-button !bg-[#476252]"><MessageSquareText size={16} /> Paste transcript</button><button onClick={() => setShowIngest(true)} className="primary-button"><Zap size={16} /> Simulate Meet event</button></div>
         </header>
-        {view === "dashboard" && <Dashboard meetings={meetings} workspace={workspace} runs={agentRuns} googleConnected={googleConnected} pending={pendingActions.length} onNew={() => setShowIngest(true)} onOpen={(id) => { setActiveMeetingId(id); setView("meeting"); }} />}
+        {view === "dashboard" && <Dashboard meetings={meetings} workspace={workspace} runs={agentRuns} googleConnected={googleConnected} workspaceAgentActive={workspaceAgentActive} pending={pendingActions.length} onNew={() => setShowIngest(true)} onOpen={(id) => { setActiveMeetingId(id); setView("meeting"); }} />}
         {view === "meeting" && activeMeeting && <MeetingView meeting={activeMeeting} onApprove={(m, a) => setActionStatus(m, a, "completed")} onReject={(m, a) => setActionStatus(m, a, "rejected")} />}
         {view === "workspace" && <WorkspaceView workspace={workspace} meetings={meetings} />}
         {view === "actions" && <ActionsView meetings={meetings} onApprove={(m, a) => setActionStatus(m, a, "completed")} onReject={(m, a) => setActionStatus(m, a, "rejected")} />}
         {view === "runs" && <AgentRunsView runs={agentRuns} />}
       </main>
-      {showIngest && <IngestModal meetings={meetings} onClose={() => setShowIngest(false)} onSelect={ingestDemo} />}
+      {showIngest && <IngestModal meetings={meetings} onClose={() => setShowIngest(false)} onSelect={ingestDemo} onWake={simulateWorkspaceWake} />}
       {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
       {showTestBench && <TestBenchModal onClose={() => setShowTestBench(false)} onComplete={acceptRun} />}
     </div>
@@ -171,10 +199,10 @@ function NavButton({ active, icon, label, badge, onClick }: { active: boolean; i
   return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-[#b9f06b] font-medium text-[#12231b]" : "text-[#a7b5ad] hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span>{badge ? <span className="ml-auto rounded-full bg-white/15 px-2 py-0.5 text-[10px]">{badge}</span> : null}</button>;
 }
 
-function Dashboard({ meetings, workspace, runs, googleConnected, pending, onNew, onOpen }: { meetings: Meeting[]; workspace: WorkspaceState; runs: AgentRun[]; googleConnected: boolean; pending: number; onNew: () => void; onOpen: (id: string) => void }) {
+function Dashboard({ meetings, workspace, runs, googleConnected, workspaceAgentActive, pending, onNew, onOpen }: { meetings: Meeting[]; workspace: WorkspaceState; runs: AgentRun[]; googleConnected: boolean; workspaceAgentActive: boolean; pending: number; onNew: () => void; onOpen: (id: string) => void }) {
   return <div className="mx-auto max-w-[1320px] px-5 py-8 md:px-8">
     <div className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#4f7b60]"><Sparkles size={14} /> Autonomous meeting agent</div><h1 className="text-3xl font-semibold tracking-[-0.04em] md:text-4xl">Your meetings finish. The work begins.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#68756e]">MeetingOps listens for Google Meet transcript events, retrieves the transcript itself, and prepares the operational follow-through.</p></div><button onClick={onNew} className="primary-button h-11"><Zap size={16} /> Simulate Meet event</button></div>
-    <div className="mb-7 rounded-2xl border border-[#b9d59d] bg-[#eef8e4] p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center"><div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#172b21] text-[#b9f06b]"><Zap size={20} fill="currentColor" /></div><div className="flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Google Meet watcher is ready</p><span className="tag !bg-[#d9edc3] !text-[#456344]">Groq connected</span><span className={`tag ${googleConnected ? "!bg-[#d9edc3] !text-[#456344]" : "!bg-[#fff5d7] !text-[#796526]"}`}>{googleConnected ? "Google OAuth connected" : "Google OAuth pending"}</span></div><p className="mt-1 text-xs leading-5 text-[#617268]">Transcript generated → retrieve entries → analyze state → plan actions → wait for approval</p></div><div className="flex items-center gap-2 text-xs font-medium text-[#5d7464]"><span className="size-2 animate-pulse rounded-full bg-[#6d9c50]" /> Event-driven agent</div></div></div>
+    <div className="mb-7 rounded-2xl border border-[#b9d59d] bg-[#eef8e4] p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center"><div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#172b21] text-[#b9f06b]"><Zap size={20} fill="currentColor" /></div><div className="flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{workspaceAgentActive ? "Workspace agent is active" : "Workspace agent is ready to install"}</p><span className="tag !bg-[#d9edc3] !text-[#456344]">Groq connected</span><span className={`tag ${googleConnected ? "!bg-[#d9edc3] !text-[#456344]" : "!bg-[#fff5d7] !text-[#796526]"}`}>{googleConnected ? "Google Workspace connected" : "Google OAuth pending"}</span></div><p className="mt-1 text-xs leading-5 text-[#617268]">{workspaceAgentActive ? "Watching all Meet spaces you own → wake on conference start → process transcript → prepare Workspace actions" : "Connect once, then MeetingOps runs in the background across meetings you organize."}</p></div><div className="flex items-center gap-2 text-xs font-medium text-[#5d7464]"><span className={`size-2 rounded-full ${workspaceAgentActive ? "animate-pulse bg-[#6d9c50]" : "bg-[#d2a84e]"}`} /> {workspaceAgentActive ? "Background agent online" : "Installation pending"}</div></div></div>
     <div className="mb-7 grid gap-3 md:grid-cols-3"><StatCard icon={<MessageSquareText />} label="Meetings analyzed" value={meetings.length} detail="Evidence-backed briefs" /><StatCard icon={<Target />} label="Workspace decisions" value={workspace.decisions.length} detail={`${workspace.tasks.length} active tasks`} /><StatCard icon={<ShieldCheck />} label="Awaiting approval" value={pending} detail="Nothing runs silently" accent /></div>
     {!meetings.length ? <div className="grid overflow-hidden rounded-2xl border border-[#dce2de] bg-white md:grid-cols-[1.1fr_.9fr]"><div className="p-7 md:p-10"><div className="mb-6 grid size-12 place-items-center rounded-2xl bg-[#e9f8d5] text-[#345a42]"><WandSparkles size={22} /></div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#789080]">Guided agent demo</p><h2 className="max-w-lg text-2xl font-semibold tracking-[-0.03em]">Watch the agent react to a finished meeting.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-[#68756e]">Trigger a simulated Google Meet transcript-ready event. MeetingOps will autonomously retrieve and process it, then pause only for external-action approval.</p><button onClick={onNew} className="primary-button mt-7"><Zap size={16} /> Trigger first Meet event <ArrowRight size={15} /></button></div><div className="border-t border-[#e2e6e3] bg-[#f1f5f2] p-7 md:border-l md:border-t-0 md:p-9"><p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-[#6d7c73]">Agent loop</p><FeatureLine icon={<Cloud />} title="Observe" body="Subscribe to Google Meet transcript-generated events." /><FeatureLine icon={<Search />} title="Reason" body="Extract evidence and reconcile workspace state." /><FeatureLine icon={<ShieldCheck />} title="Act safely" body="Prepare actions, then wait for human approval." /></div></div>
       : <div className="grid gap-6 xl:grid-cols-[1fr_.7fr]"><section><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-semibold">Recent intelligence</h2><span className="text-xs text-[#7b8780]">{meetings.length} meetings</span></div><div className="grid gap-3">{meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} onClick={() => onOpen(meeting.id)} />)}</div></section><section><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-semibold">Latest agent run</h2><span className="text-xs text-[#7b8780]">{runs[0]?.stage.replace("_", " ")}</span></div>{runs[0] && <RunCard run={runs[0]} />}</section></div>}
@@ -188,7 +216,8 @@ function FeatureLine({ icon, title, body }: { icon: React.ReactNode; title: stri
 function MeetingRow({ meeting, onClick }: { meeting: Meeting; onClick: () => void }) { return <button onClick={onClick} className="group flex w-full items-center gap-4 rounded-xl border border-[#dce2de] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b8c7bd] hover:shadow-sm"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#edf5ef] text-[#4f735d]"><MessageSquareText size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{meeting.title}</p><span className="tag">{meeting.type}</span></div><p className="mt-1 truncate text-xs text-[#758179]">{meeting.summary}</p></div><div className="hidden text-right sm:block"><p className="text-xs font-medium">{meeting.date}</p><p className="mt-1 text-[11px] text-[#8a958f]">{meeting.changes.length} changes detected</p></div><ChevronRight size={16} className="text-[#8a958f]" /></button>; }
 
 function RunCard({ run }: { run: AgentRun }) {
-  return <div className="rounded-2xl border border-[#dce2de] bg-white p-5"><div className="mb-5 flex items-start justify-between"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-[#172b21] text-[#b9f06b]"><Bot size={17} /></div><div><p className="text-sm font-semibold">{run.meeting?.title ?? "Google Meet event"}</p><p className="mt-1 text-[11px] text-[#7b8780]">{run.reasoningMode === "structured_llm" ? `${run.reasoningProvider ?? "Model"} · ${run.reasoningModel ?? "Structured reasoning"}` : "Deterministic fallback"}</p></div></div><span className="tag">{run.stage.replace("_", " ")}</span></div><div className="space-y-0">{run.log.map((entry, index) => <div key={`${entry.at}-${index}`} className="grid grid-cols-[18px_1fr] gap-3"><div className="flex flex-col items-center"><span className={`mt-1.5 size-2 rounded-full ${index === run.log.length - 1 ? "bg-[#79a756]" : "bg-[#b9c5bd]"}`} />{index < run.log.length - 1 && <span className="h-full w-px bg-[#e0e6e2]" />}</div><div className="pb-4"><p className="text-xs font-medium capitalize">{entry.stage.replace("_", " ")}</p><p className="mt-1 text-[11px] leading-4 text-[#78847d]">{entry.message}</p></div></div>)}</div></div>;
+  const detail = run.reasoningMode === "structured_llm" ? `${run.reasoningProvider ?? "Model"} · ${run.reasoningModel ?? "Structured reasoning"}` : run.eventType ? "Google Workspace background event" : "Deterministic fallback";
+  return <div className="rounded-2xl border border-[#dce2de] bg-white p-5"><div className="mb-5 flex items-start justify-between"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-[#172b21] text-[#b9f06b]"><Bot size={17} /></div><div><p className="text-sm font-semibold">{run.meeting?.title ?? "Active Google Meet conference"}</p><p className="mt-1 text-[11px] text-[#7b8780]">{detail}</p></div></div><span className="tag">{run.stage.replace("_", " ")}</span></div><div className="space-y-0">{run.log.map((entry, index) => <div key={`${entry.at}-${index}`} className="grid grid-cols-[18px_1fr] gap-3"><div className="flex flex-col items-center"><span className={`mt-1.5 size-2 rounded-full ${index === run.log.length - 1 ? "bg-[#79a756]" : "bg-[#b9c5bd]"}`} />{index < run.log.length - 1 && <span className="h-full w-px bg-[#e0e6e2]" />}</div><div className="pb-4"><p className="text-xs font-medium capitalize">{entry.stage.replace("_", " ")}</p><p className="mt-1 text-[11px] leading-4 text-[#78847d]">{entry.message}</p></div></div>)}</div></div>;
 }
 
 function AgentRunsView({ runs }: { runs: AgentRun[] }) {
@@ -234,22 +263,40 @@ function EmptyLine({ text }: { text: string }) { return <p className="py-6 text-
 function SectionTitle({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) { return <div className="mb-4"><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64806e]">{eyebrow}</p><h2 className="text-lg font-semibold tracking-[-0.02em]">{title}</h2><p className="mt-1 text-xs text-[#78847d]">{subtitle}</p></div>; }
 function ActionsView({ meetings, onApprove, onReject }: { meetings: Meeting[]; onApprove: (m: string, a: string) => Promise<boolean>; onReject: (m: string, a: string) => Promise<boolean> }) { const all = meetings.flatMap((meeting) => meeting.actions.map((action) => ({ action, meeting }))); return <div className="mx-auto max-w-[1320px] px-5 py-8 md:px-8"><div className="mb-7"><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#4f7b60]"><ShieldCheck size={14} /> Controlled execution</div><h1 className="text-3xl font-semibold tracking-[-0.04em]">Action center</h1><p className="mt-2 text-sm text-[#68756e]">Review, approve, or reject every external side effect.</p></div>{all.length ? <div className="grid gap-3 lg:grid-cols-3">{all.map(({ action, meeting }) => <ActionCard key={`${meeting.id}-${action.id}`} action={action} meetingId={meeting.id} onApprove={onApprove} onReject={onReject} />)}</div> : <EmptyLine text="Analyze a meeting to populate the approval queue." />}</div>; }
 
-function IngestModal({ meetings, onClose, onSelect }: { meetings: Meeting[]; onClose: () => void; onSelect: (index: number) => void }) {
+function IngestModal({ meetings, onClose, onSelect, onWake }: { meetings: Meeting[]; onClose: () => void; onSelect: (index: number) => void; onWake: () => void }) {
   const next = meetings.some((meeting) => meeting.id === "roadmap-1") ? 1 : 0;
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white p-6 shadow-2xl md:p-7"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Google Meet event simulator</p><h2 className="text-xl font-semibold tracking-[-0.03em]">A transcript is ready</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Trigger the event Google Workspace would send after Meet generates a transcript. No transcript upload is involved.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><div className="space-y-3">{DEMO_MEETINGS.map((meeting, index) => { const done = meetings.some((item) => item.id === meeting.id); return <button key={meeting.id} onClick={() => onSelect(index)} className={`group w-full rounded-xl border p-4 text-left transition ${index === next ? "border-[#9fbd79] bg-[#f0f8e6]" : "border-[#dde3df] bg-[#f9faf9]"}`}><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#587461]"><Zap size={16} /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{meeting.title}</p>{index === next && <span className="tag">Recommended next</span>}{done && <span className="tag"><Check size={10} /> processed</span>}</div><p className="mt-1 text-xs text-[#7b8780]">{meeting.date} · Google Meet · transcript generated</p><p className="mt-2 text-xs leading-5 text-[#66736b]">The agent receives the event, retrieves {meeting.transcript.length} transcript entries, and begins its workflow.</p></div><ChevronRight size={16} className="mt-2 text-[#87938c]" /></div></button>; })}</div><div className="mt-5 rounded-xl bg-[#f4f6f4] p-3 text-[11px] leading-5 text-[#76827b]"><strong className="font-semibold text-[#52645a]">Production path:</strong> Google Workspace Events API → Pub/Sub → webhook → Google Meet REST API → agent runtime.</div></div></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white p-6 shadow-2xl md:p-7"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Google Meet event simulator</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Observe the background agent lifecycle</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Simulate the Workspace events that wake MeetingOps and later deliver the final transcript.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><button onClick={onWake} className="mb-4 flex w-full items-center gap-3 rounded-xl border border-[#9fbd79] bg-[#f0f8e6] p-4 text-left"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#587461]"><Activity size={16} /></div><div className="flex-1"><p className="text-sm font-semibold">Simulate conference started</p><p className="mt-1 text-xs text-[#66736b]">Show MeetingOps waking automatically when an owned Google Meet begins.</p></div><ChevronRight size={16} /></button><div className="space-y-3">{DEMO_MEETINGS.map((meeting, index) => { const done = meetings.some((item) => item.id === meeting.id); return <button key={meeting.id} onClick={() => onSelect(index)} className={`group w-full rounded-xl border p-4 text-left transition ${index === next ? "border-[#9fbd79] bg-[#f0f8e6]" : "border-[#dde3df] bg-[#f9faf9]"}`}><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#587461]"><Zap size={16} /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{meeting.title}</p>{index === next && <span className="tag">Recommended next</span>}{done && <span className="tag"><Check size={10} /> processed</span>}</div><p className="mt-1 text-xs text-[#7b8780]">{meeting.date} · Google Meet · transcript generated</p><p className="mt-2 text-xs leading-5 text-[#66736b]">The agent receives the event, retrieves {meeting.transcript.length} transcript entries, and begins its workflow.</p></div><ChevronRight size={16} className="mt-2 text-[#87938c]" /></div></button>; })}</div><div className="mt-5 rounded-xl bg-[#f4f6f4] p-3 text-[11px] leading-5 text-[#76827b]"><strong className="font-semibold text-[#52645a]">Production path:</strong> owned Meet space → Workspace Events API → Pub/Sub → Railway agent runtime → Drive and Gmail.</div></div></div>;
 }
 
 function IntegrationsModal({ onClose }: { onClose: () => void }) {
-  const [status, setStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
+  const [status, setStatus] = useState<WorkspaceAgentStatus | null>(null);
   const [message, setMessage] = useState("");
-  useEffect(() => { fetch("/api/auth/google/status").then((response) => response.json()).then(setStatus).catch(() => setStatus({ configured: false, connected: false })); }, []);
+  async function refresh() {
+    const response = await fetch("/api/integrations/google-meet/status");
+    setStatus(await response.json());
+  }
+  useEffect(() => {
+    fetch("/api/integrations/google-meet/status")
+      .then((response) => response.json())
+      .then(setStatus)
+      .catch(() => setStatus({ configured: false, connected: false }));
+  }, []);
   async function activate() {
-    setMessage("Activating watcher...");
+    setMessage("Installing background agent across your Workspace meetings...");
     const response = await fetch("/api/integrations/google-meet/activate", { method: "POST" });
     const result = await response.json();
-    setMessage(response.ok ? result.message ?? "Google Meet watcher is active." : result.error ?? "Activation failed.");
+    setMessage(response.ok ? result.message ?? "Workspace agent is active." : result.error ?? "Activation failed.");
+    if (response.ok) await refresh();
   }
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Agent integrations</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Connect Google Workspace</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Authorize Meet transcript retrieval, app-created Drive files, and Gmail draft creation.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><div className="rounded-xl border border-[#dce2de] bg-[#f7f9f7] p-4"><div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#52705f]"><Cloud size={18} /></div><div className="flex-1"><p className="text-sm font-semibold">Google Meet + Drive + Gmail</p><p className="mt-1 text-xs leading-5 text-[#748078]">Uses offline access so the agent can process meetings after they end. Gmail permission creates drafts only.</p></div><span className="tag">{status?.connected ? "Connected" : status?.configured ? "Ready" : "Needs credentials"}</span></div>{status?.connected ? <button onClick={activate} className="primary-button mt-5 w-full justify-center">Activate Meet watcher <Zap size={14} /></button> : <a href="/api/auth/google/connect" className="primary-button mt-5 w-full justify-center">Connect Google Workspace <ArrowRight size={14} /></a>}{message && <p className="mt-3 text-center text-xs text-[#617268]">{message}</p>}</div><div className="mt-4 rounded-xl bg-[#fff8e6] p-3 text-[11px] leading-5 text-[#79672f]"><strong>Before connecting:</strong> add Google OAuth credentials and the callback URL from <code>GOOGLE_SETUP.md</code>. Pub/Sub needs a public HTTPS webhook, so localhost requires an ngrok tunnel or deployment.</div></div></div>;
+  async function renew() {
+    setMessage("Renewing Workspace event subscription...");
+    const response = await fetch("/api/integrations/google-meet/renew", { method: "POST" });
+    const result = await response.json();
+    setMessage(response.ok ? result.message : result.error ?? "Renewal failed.");
+    if (response.ok) await refresh();
+  }
+  const active = status?.watcher?.state === "active" || status?.watcher?.state === "activating";
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]">Workspace agent installation</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Run MeetingOps across Google Workspace</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Connect once. MeetingOps then wakes on Meet activity and delivers follow-through into Drive and Gmail.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div><div className="rounded-xl border border-[#dce2de] bg-[#f7f9f7] p-4"><div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#52705f]"><Cloud size={18} /></div><div className="flex-1"><p className="text-sm font-semibold">Google Meet + Drive + Gmail</p><p className="mt-1 text-xs leading-5 text-[#748078]">{status?.identity?.email ? `Installed for ${status.identity.email}. ` : ""}{active ? "Watching every Meet space this user owns." : "Uses offline access so the background agent can work after meetings end."}</p></div><span className="tag">{active ? "Agent active" : status?.connected ? "Connected" : status?.configured ? "Ready" : "Needs credentials"}</span></div>{status?.connected ? <div className="mt-5 flex gap-2"><button onClick={activate} className="primary-button flex-1 justify-center">{active ? "Re-sync Workspace agent" : "Install Workspace agent"} <Zap size={14} /></button>{active && <button onClick={renew} className="icon-button" title="Renew subscription"><RotateCcw size={14} /></button>}</div> : <a href="/api/auth/google/connect" className="primary-button mt-5 w-full justify-center">Connect Google Workspace <ArrowRight size={14} /></a>}{status?.watcher?.expireTime && <p className="mt-3 text-center text-[11px] text-[#748078]">Watcher renews before {new Date(status.watcher.expireTime).toLocaleString()}.</p>}{message && <p className="mt-3 text-center text-xs text-[#617268]">{message}</p>}</div><div className="mt-4 rounded-xl bg-[#fff8e6] p-3 text-[11px] leading-5 text-[#79672f]"><strong>Workspace-native behavior:</strong> the web app is the control plane. The agent runs on Railway, listens to Workspace events, and writes results into the connected user&apos;s Google Drive and Gmail.</div></div></div>;
 }
 
 function TestBenchModal({ onClose, onComplete }: { onClose: () => void; onComplete: (run: AgentRun) => void }) {

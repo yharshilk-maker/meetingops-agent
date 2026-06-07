@@ -1,4 +1,4 @@
-import { subscribeToGoogleMeetTranscripts } from "@/lib/agent/google-events";
+import { subscribeToGoogleMeetAgent } from "@/lib/agent/google-events";
 import { getGoogleAccessToken } from "@/lib/agent/google-oauth";
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Google access token, targetResource, and pubsubTopic are required." }, { status: 400 });
   }
   try {
-    const subscription = await subscribeToGoogleMeetTranscripts({ accessToken, targetResource, pubsubTopic });
+    const subscription = await subscribeToGoogleMeetAgent({ accessToken, targetResource, pubsubTopic });
     return Response.json(subscription, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Subscription failed" }, { status: 400 });

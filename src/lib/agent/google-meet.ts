@@ -68,13 +68,23 @@ export async function fetchGoogleMeetTranscript(
   return lines;
 }
 
-export type GoogleMeetTranscriptEvent = {
+export type GoogleMeetEventType =
+  | "google.workspace.meet.conference.v2.started"
+  | "google.workspace.meet.conference.v2.ended"
+  | "google.workspace.meet.participant.v2.joined"
+  | "google.workspace.meet.participant.v2.left"
+  | "google.workspace.meet.transcript.v2.started"
+  | "google.workspace.meet.transcript.v2.ended"
+  | "google.workspace.meet.transcript.v2.fileGenerated";
+
+export type GoogleMeetEvent = {
   id?: string;
-  type: "google.workspace.meet.transcript.v2.fileGenerated";
+  type: GoogleMeetEventType;
   subject?: string;
   data: {
     conferenceRecord?: { name?: string };
     transcript?: { name?: string };
+    participantSession?: { name?: string };
     demoMeeting?: MeetingInput;
   };
 };

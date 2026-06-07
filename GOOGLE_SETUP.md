@@ -1,6 +1,6 @@
 # Google Workspace Setup
 
-This setup lets MeetingOps automatically receive Google Meet transcript events, fetch transcript entries, save briefs to Drive, and create Gmail drafts.
+This setup lets a user install MeetingOps into their Google Workspace. MeetingOps then receives conference, participant, and transcript events for Meet spaces that user owns, fetches transcript entries, saves briefs to Drive, and creates Gmail drafts.
 
 ## 1. Create a Google Cloud project
 
@@ -104,14 +104,15 @@ with the request header:
 x-meetingops-webhook-secret: a-long-random-secret
 ```
 
-## 5. Choose the Meet target
+## 5. Workspace-wide Meet target
 
-MeetingOps can watch:
+MeetingOps installs a user-wide watcher using the connected user's Google identity:
 
-- One Meet space: `//meet.googleapis.com/spaces/SPACE_ID`
-- All spaces owned by a user: `//cloudidentity.googleapis.com/users/USER_ID`
+```text
+//cloudidentity.googleapis.com/users/USER_ID
+```
 
-For the best demo, use a single Meet space first. MeetingOps accepts the normal Meet URL or meeting code and resolves it to the canonical API space ID before creating the subscription.
+This receives events for all Meet spaces owned by the connected user. You no longer need to configure one specific Meet URL.
 
 ## 6. Configure `.env.local`
 
@@ -124,7 +125,6 @@ GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
 GOOGLE_REDIRECT_URI="http://localhost:3001/api/auth/google/callback"
 GOOGLE_PUBSUB_TOPIC="projects/YOUR_PROJECT_ID/topics/meetingops-events"
-GOOGLE_MEET_TARGET_RESOURCE="https://meet.google.com/YOUR-MEETING-CODE"
 GOOGLE_WEBHOOK_SECRET=""
 GOOGLE_DRIVE_ROOT_FOLDER_ID=""
 ```
@@ -141,13 +141,14 @@ npm run dev
 2. Click the cloud integration button in the top bar.
 3. Click **Connect Google Workspace**.
 4. Grant permissions.
-5. Return to the integration panel and click **Activate Meet watcher**.
-6. Start a Google Meet using the monitored space and enable transcription.
+5. Return to the integration panel and click **Install Workspace agent**.
+6. Start a Google Meet that the connected user owns and enable transcription.
 7. End the meeting. After Google generates the transcript, the agent should process it automatically.
 
 ## Important limitations
 
 - Google Meet transcription must be enabled during the meeting.
 - The authenticated user must have access to the conference transcript.
+- This generally available implementation wakes on conference events but does not join as a visible live-audio bot. That requires Google's Developer Preview Meet Media API.
 - This demo stores OAuth tokens in the local gitignored `.meetingops` directory. A production deployment must encrypt and persist refresh tokens in a managed secrets store or database.
-- Google Workspace subscriptions expire and should be renewed by a scheduled background job.
+- Google Workspace subscriptions expire. MeetingOps handles expiration-reminder events and also exposes a manual renewal endpoint; production should additionally run scheduled renewal checks.

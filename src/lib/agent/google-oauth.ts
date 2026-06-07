@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readJson, removeDataFile, writeJson } from "@/lib/agent/data-store";
 
 export const GOOGLE_SCOPES = [
   "openid",
@@ -21,24 +20,49 @@ type GoogleTokens = {
   id_token?: string;
 };
 
-const state = globalThis as typeof globalThis & { meetingOpsGoogleTokens?: GoogleTokens };
-const DATA_DIR = process.env.MEETINGOPS_DATA_DIR ?? path.join(process.cwd(), ".meetingops");
-const TOKEN_PATH = path.join(DATA_DIR, "google-tokens.json");
+export type GoogleWorkspaceIdentity = {
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+};
+
+const state = globalThis as typeof globalThis & {
+  meetingOpsGoogleTokens?: GoogleTokens;
+  meetingOpsGoogleIdentity?: GoogleWorkspaceIdentity;
+};
 
 async function loadTokens() {
   if (state.meetingOpsGoogleTokens) return state.meetingOpsGoogleTokens;
-  try {
-    state.meetingOpsGoogleTokens = JSON.parse(await readFile(TOKEN_PATH, "utf8")) as GoogleTokens;
-    return state.meetingOpsGoogleTokens;
-  } catch {
-    return undefined;
-  }
+  state.meetingOpsGoogleTokens = await readJson<GoogleTokens>("google-tokens.json");
+  return state.meetingOpsGoogleTokens;
 }
 
 async function saveTokens(tokens: GoogleTokens) {
   state.meetingOpsGoogleTokens = tokens;
-  await mkdir(path.dirname(TOKEN_PATH), { recursive: true });
-  await writeFile(TOKEN_PATH, JSON.stringify(tokens), { mode: 0o600 });
+  await writeJson("google-tokens.json", tokens);
+}
+
+async function fetchGoogleIdentity(accessToken: string) {
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Google identity lookup failed: ${response.status}`);
+  const identity = await response.json() as GoogleWorkspaceIdentity;
+  state.meetingOpsGoogleIdentity = identity;
+  await writeJson("google-identity.json", identity);
+  return identity;
+}
+
+export async function getGoogleWorkspaceIdentity(accessToken?: string) {
+  if (state.meetingOpsGoogleIdentity) return state.meetingOpsGoogleIdentity;
+  const stored = await readJson<GoogleWorkspaceIdentity>("google-identity.json");
+  if (stored) {
+    state.meetingOpsGoogleIdentity = stored;
+    return stored;
+  }
+  const token = accessToken ?? await getGoogleAccessToken();
+  return token ? fetchGoogleIdentity(token) : undefined;
 }
 
 function credentials() {
@@ -80,6 +104,7 @@ export async function exchangeGoogleCode(code: string, returnedState: string | n
   if (!response.ok) throw new Error(`Google token exchange failed: ${await response.text()}`);
   const tokens = await response.json() as GoogleTokens;
   await saveTokens({ ...tokens, expires_at: Date.now() + (tokens.expires_in ?? 3600) * 1000 });
+  await fetchGoogleIdentity(tokens.access_token);
   cookieStore.delete("meetingops_oauth_state");
   return tokens;
 }
@@ -104,10 +129,16 @@ export async function getGoogleAccessToken() {
 
 export async function googleConnectionStatus() {
   const tokens = await loadTokens();
-  return { configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET), connected: Boolean(tokens?.refresh_token || tokens?.access_token) };
+  const identity = tokens ? await getGoogleWorkspaceIdentity(tokens.access_token) : undefined;
+  return {
+    configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    connected: Boolean(tokens?.refresh_token || tokens?.access_token),
+    identity,
+  };
 }
 
 export async function disconnectGoogle() {
   state.meetingOpsGoogleTokens = undefined;
-  await rm(TOKEN_PATH, { force: true });
+  state.meetingOpsGoogleIdentity = undefined;
+  await Promise.all([removeDataFile("google-tokens.json"), removeDataFile("google-identity.json")]);
 }
