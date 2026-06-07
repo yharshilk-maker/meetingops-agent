@@ -9,7 +9,8 @@ const ALLOWED_EVENTS: GoogleMeetEventType[] = [
 ];
 
 export async function POST(request: Request) {
-  const { type = ALLOWED_EVENTS[0] } = await request.json() as { type?: GoogleMeetEventType };
+  const body = await request.json().catch(() => ({})) as { type?: GoogleMeetEventType };
+  const type = body.type ?? ALLOWED_EVENTS[0];
   if (!ALLOWED_EVENTS.includes(type)) return Response.json({ error: "Unsupported demo lifecycle event." }, { status: 400 });
   const event: GoogleMeetEvent = {
     id: `demo-lifecycle-${type}-${crypto.randomUUID()}`,
