@@ -222,6 +222,7 @@ export default function Home() {
           <NavButton active={view === "runs"} icon={<Activity size={17} />} label="Agent runs" badge={agentRuns.length} onClick={() => setView("runs")} />
           <NavButton active={view === "actions"} icon={<ShieldCheck size={17} />} label="Action center" badge={pendingActions.length} onClick={() => setView("actions")} />
           <NavButton active={view === "demo"} icon={<Video size={17} />} label="Demo" onClick={() => setView("demo")} />
+          <a href="/movie" target="_blank" rel="noreferrer" className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[#a7b5ad] transition hover:bg-white/5 hover:text-white"><Clapperboard size={17} /><span>Product film</span><span className="ml-auto rounded-full bg-[#b9f06b]/20 px-2 py-0.5 text-[10px] font-semibold text-[#b9f06b]">NEW</span></a>
         </nav>
         <div className="mt-8 px-2">
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6e8277]">Recent meetings</p>
