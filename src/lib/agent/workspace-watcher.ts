@@ -53,7 +53,7 @@ export async function activateWorkspaceWatcher() {
     return saveWatcher(watcher);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workspace watcher activation failed.";
-    if (message.toLowerCase().includes("already exists")) {
+    if (message.toLowerCase().includes("already exists") || message.toLowerCase().includes("only one subscription")) {
       const subscriptions = await listWorkspaceSubscriptions(accessToken, targetResource);
       const existing = subscriptions.subscriptions?.find((item) => item.targetResource === targetResource);
       if (existing) return saveWatcher(watcherFromSubscription(existing, base));
