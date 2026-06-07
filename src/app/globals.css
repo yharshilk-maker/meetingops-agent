@@ -1,26 +1,11 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+:root { --background: #f5f6f8; --foreground: #17211b; }
+@theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --font-sans: var(--font-geist-sans); --font-mono: var(--font-geist-mono); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+button { cursor: pointer; }
+.primary-button { display: inline-flex; align-items: center; gap: .5rem; border-radius: .65rem; background: #172b21; color: white; padding: .65rem .9rem; font-size: .75rem; font-weight: 600; transition: 160ms ease; }
+.primary-button:hover { background: #254333; transform: translateY(-1px); }
+.icon-button { display: inline-grid; width: 2.35rem; height: 2.35rem; place-items: center; border: 1px solid #d8dfda; border-radius: .65rem; background: white; color: #607168; transition: 160ms ease; }
+.icon-button:hover { border-color: #aebdb3; color: #253b2e; }
+.tag { display: inline-flex; align-items: center; gap: .28rem; white-space: nowrap; border-radius: 999px; background: #eef3ef; padding: .28rem .5rem; color: #617269; font-size: .62rem; font-weight: 600; text-transform: capitalize; }
