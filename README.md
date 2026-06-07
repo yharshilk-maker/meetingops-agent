@@ -84,6 +84,8 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for hosting recommendations and production-
 
 The agent uses structured model output when Groq or OpenAI is configured and retains a deterministic fallback for a reliable walkthrough.
 
+See [DEMO.md](./DEMO.md) for a concise founder-demo talk track and backup plan.
+
 ## Model reasoning
 
 Groq is the recommended provider for this take-home because it offers fast OpenAI-compatible inference and a free developer tier. Configure:
