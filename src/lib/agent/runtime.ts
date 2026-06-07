@@ -5,7 +5,7 @@ import { DEMO_MEETINGS, INITIAL_WORKSPACE, Meeting, analyzeTranscript, meetingFr
 export type AgentStage = "idle" | "event_received" | "observing" | "fetching_transcript" | "analyzing" | "planning_actions" | "awaiting_approval" | "completed" | "failed";
 export type AgentRun = {
   id: string;
-  provider: "google_meet" | "manual_test";
+  provider: "google_meet" | "manual_test" | "live_audio";
   stage: AgentStage;
   startedAt: string;
   completedAt?: string;
@@ -54,16 +54,16 @@ async function analyzeInput(run: AgentRun, input: import("@/lib/meeting-engine")
   return run;
 }
 
-export async function processManualTranscript(input: import("@/lib/meeting-engine").MeetingInput) {
+async function processTranscriptInput(input: import("@/lib/meeting-engine").MeetingInput, provider: "manual_test" | "live_audio") {
   const run: AgentRun = {
     id: crypto.randomUUID(),
-    provider: "manual_test",
+    provider,
     stage: "event_received",
     startedAt: new Date().toISOString(),
     log: [],
   };
   state.meetingOpsRuns = [run, ...(state.meetingOpsRuns ?? [])].slice(0, 20);
-  addLog(run, "event_received", "Transcript test bench submitted a meeting.");
+  addLog(run, "event_received", provider === "live_audio" ? "Meet audio capture completed and started the agent." : "Transcript test bench submitted a meeting.");
   addLog(run, "fetching_transcript", `Parsed ${input.transcript.length} transcript entries.`);
   try {
     return await analyzeInput(run, input);
@@ -72,6 +72,14 @@ export async function processManualTranscript(input: import("@/lib/meeting-engin
     addLog(run, "failed", run.error);
     throw error;
   }
+}
+
+export function processManualTranscript(input: import("@/lib/meeting-engine").MeetingInput) {
+  return processTranscriptInput(input, "manual_test");
+}
+
+export function processLiveAudioTranscript(input: import("@/lib/meeting-engine").MeetingInput) {
+  return processTranscriptInput(input, "live_audio");
 }
 
 export async function processGoogleMeetEvent(event: GoogleMeetEvent, accessToken?: string) {

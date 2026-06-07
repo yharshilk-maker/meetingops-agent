@@ -2,7 +2,7 @@
 
 **An event-driven AI agent that turns finished meetings into operational follow-through.**
 
-MeetingOps listens for Google Meet transcript events, retrieves the transcript itself, reasons over what changed, and prepares controlled follow-up actions. It goes beyond meeting summaries by maintaining workspace memory, surfacing unresolved risks, and requiring human approval before external actions.
+MeetingOps captures Google Meet audio through a companion Chrome extension or receives Google Workspace transcript events, reasons over what changed, and prepares controlled follow-up actions. It goes beyond meeting summaries by maintaining workspace memory, surfacing unresolved risks, and requiring human approval before external actions.
 
 **Live demo:** [meetingops-production.up.railway.app](https://meetingops-production.up.railway.app)
 
@@ -20,6 +20,7 @@ The agent uses evidence-backed structured reasoning, has a deterministic fallbac
 ## Highlights
 
 - Automatically receives Google Meet transcript-ready events through Workspace Events and Pub/Sub.
+- Captures Meet tab audio and generates its own transcript with Groq Whisper, avoiding the paid Google Meet transcription requirement.
 - Installs a user-wide Workspace watcher that wakes on conferences, participants, and transcript activity across Meet spaces the connected user owns.
 - Extracts summaries, decisions, owners, deadlines, tasks, risks, and open questions.
 - Applies the SPICED framework and calculates a meeting-closure score.
@@ -48,7 +49,9 @@ Google Meet transcription finishes
   → External actions wait for human approval
 ```
 
-Google Meet transcription must be enabled for the autonomous meeting flow. The dashboard also includes a **Paste transcript** test bench so reviewers can exercise the complete post-transcript workflow without waiting for a live meeting.
+For meetings without Google transcription, use the included Chrome audio-capture extension. The dashboard also includes a **Paste transcript** test bench so reviewers can exercise the complete post-transcript workflow without waiting for a live meeting.
+
+Follow [AUDIO_CAPTURE_SETUP.md](./AUDIO_CAPTURE_SETUP.md) to install and demo the Meet audio agent.
 
 ## Demo flow
 
@@ -69,7 +72,7 @@ Google Meet transcription must be enabled for the autonomous meeting flow. The d
 
 ### Live Google Meet story
 
-Connect Google Workspace and install the Workspace agent once. MeetingOps subscribes to all Meet spaces owned by the connected user, wakes when a conference starts, observes participant and transcript lifecycle events, and processes the final transcript without an upload.
+Install the companion Chrome extension, open a Meet, and click **Start MeetingOps**. At the end, click **Stop and analyze meeting**. MeetingOps transcribes the captured tab audio with Groq Whisper and runs the same post-meeting agent workflow without relying on Google's paid transcription.
 
 ## Agent endpoints
 
@@ -81,6 +84,10 @@ Connect Google Workspace and install the Workspace agent once. MeetingOps subscr
 - `POST /api/agent/demo` triggers a simulated Google Meet event.
 - `POST /api/agent/demo-lifecycle` simulates the conference-start event that wakes the background agent.
 - `POST /api/agent/analyze-transcript` runs the post-transcript agent workflow from the test bench.
+- `POST /api/live-capture/start` creates an extension audio-capture session.
+- `POST /api/live-capture/chunk` transcribes captured audio with Groq Whisper.
+- `POST /api/live-capture/finish` assembles the transcript and starts the agent workflow.
+- `GET /api/live-capture/status/:id` returns capture-session progress.
 
 ## Production setup
 
@@ -100,6 +107,7 @@ Groq is the recommended provider for this take-home because it offers fast OpenA
 LLM_PROVIDER="groq"
 GROQ_API_KEY="your-key"
 GROQ_MODEL="openai/gpt-oss-20b"
+GROQ_TRANSCRIPTION_MODEL="whisper-large-v3-turbo"
 ```
 
 The GPT-OSS Groq models support strict structured outputs. You can alternatively set `LLM_PROVIDER="openai"` and `OPENAI_API_KEY`. Without either key, the agent records that it used its deterministic demo fallback.
@@ -124,9 +132,10 @@ Each analysis also produces a meeting-closure score that flags missing owners, m
 ## Architecture
 
 ```text
-Installed Workspace user → owned Google Meet spaces → Workspace Events → Pub/Sub → webhook
+Google Meet tab → Chrome extension → captured audio → Groq Whisper ┐
+Installed Workspace user → Workspace Events → Pub/Sub → webhook   ├→ agent runtime
                                          ↓
-Transcript test bench ───────────────→ agent runtime
+Transcript test bench ─────────────────────────────────────────────┘
                                          ↓
                        structured reasoning + evidence
                                          ↓
@@ -139,4 +148,4 @@ The app is built with Next.js, TypeScript, React, Groq/OpenAI-compatible structu
 
 ## Current scope
 
-MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently supports one installed Google Workspace user per deployment and keeps workspace memory in the browser. It wakes on conference activity but processes the Google-generated transcript after the meeting; joining visibly and consuming live audio requires the Developer Preview Meet Media API. The deployment guide describes the persistence, authentication, tenant isolation, and queueing work needed for a multi-user production service.
+MeetingOps is a take-home prototype designed to demonstrate the complete agent loop. It currently supports one installed Google Workspace user per deployment and keeps workspace memory in the browser. The Chrome extension captures combined tab audio after a user clicks Start; speaker identification is therefore best-effort. A production version would add tenant isolation, resumable uploads, durable agent-run storage, and queue-backed processing.
