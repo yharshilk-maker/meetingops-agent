@@ -26,3 +26,8 @@ button { cursor: pointer; }
 @keyframes float-up { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes check-pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
 @keyframes sheen { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+
+/* How-it-works pipeline: guaranteed 6-across on wide screens */
+.pipeline-grid { display: grid; gap: .75rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .pipeline-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .pipeline-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
