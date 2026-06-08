@@ -69,13 +69,17 @@ export async function normalizeTranscript(
     .filter((line) => line.text);
   if (!cleaned.length) return [];
 
+  // If the transcript already carries real per-line speaker labels (e.g. from the
+  // Meet bot or an official transcript), trust them. Re-deriving speakers from the
+  // raw text clobbers real names (and misreads lines like "Decision: ..." as speakers).
+  if (!isRawAudioTranscript(cleaned)) return mergeAdjacentSameSpeaker(cleaned);
+
+  // Otherwise it's an unlabeled blob or raw audio: parse inline "Name:" turns first.
   const rawText = cleaned.map((line) => line.text).join("\n");
   const speakerLineTurns = parseSpeakerLines(rawText);
   if (speakerLineTurns.length > cleaned.length || speakerLineTurns.some((line) => line.speaker !== "Speaker")) {
     return mergeAdjacentSameSpeaker(speakerLineTurns);
   }
-
-  if (!isRawAudioTranscript(cleaned)) return mergeAdjacentSameSpeaker(cleaned);
 
   const diarized = await diarizeTranscript(rawText, options.title);
   if (diarized?.length) {

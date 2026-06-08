@@ -38,7 +38,7 @@ async function findOrCreateFolder(name: string, parentId: string | undefined, ac
   const parentClause = parentId ? `'${parentId}' in parents` : `'root' in parents`;
   const q = `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and trashed=false and ${parentClause}`;
   const found = await googleRequest<{ files?: { id: string }[] }>(
-    `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&spaces=drive`,
+    `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id)&spaces=drive&orderBy=createdTime`,
     accessToken,
   );
   if (found.files?.[0]?.id) return found.files[0].id;

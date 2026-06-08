@@ -111,6 +111,39 @@ export function analyzeTranscript(input: MeetingInput, workspace: WorkspaceState
   return meeting;
 }
 
+const COMMITMENT_RE = /\b(i['’]?ll|i will|i can|i'?m going to|let me|i["']?ll take|i own|i'?ll own)\b/i;
+const OWNER_STOPWORDS = new Set(["the", "a", "an", "to", "of", "for", "and", "or", "by", "on", "in", "is", "be", "we", "i", "will", "can", "that", "this", "with", "before", "after", "need", "needs", "still", "from", "into", "our", "their", "it"]);
+
+function significantWords(text: string) {
+  return new Set((text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((word) => word.length > 2 && !OWNER_STOPWORDS.has(word)));
+}
+
+// Small models attribute task owners unreliably, so derive the owner deterministically:
+// match each task to the transcript line it came from and use that speaker.
+function attributeTaskOwner(taskText: string, transcript: TranscriptLine[]): string {
+  const taskWords = significantWords(taskText);
+  if (!taskWords.size) return "";
+  let bestSpeaker = "";
+  let bestScore = 0;
+  for (const line of transcript) {
+    const lineWords = significantWords(line.text);
+    let overlap = 0;
+    for (const word of taskWords) if (lineWords.has(word)) overlap += 1;
+    const score = overlap + (COMMITMENT_RE.test(line.text) ? 2 : 0);
+    if (score > bestScore) { bestScore = score; bestSpeaker = line.speaker; }
+  }
+  return bestScore >= 2 ? bestSpeaker : "";
+}
+
+function attributeTaskOwners(tasks: Task[], input: MeetingInput): Task[] {
+  return tasks.map((task) => {
+    const derived = attributeTaskOwner(task.text, input.transcript);
+    const llmOwner = task.owner?.trim();
+    const validLlmOwner = llmOwner && !/^speakers?(\s*\d+)?$/i.test(llmOwner) && !llmOwner.includes("@") ? llmOwner : "";
+    return { ...task, owner: derived || validLlmOwner };
+  });
+}
+
 export function meetingFromAnalysis(input: MeetingInput, analysis: {
   meeting_type: string;
   workspace_name: string;
@@ -129,7 +162,7 @@ export function meetingFromAnalysis(input: MeetingInput, analysis: {
     type: meetingType,
     summary: analysis.executive_summary.trim() || `Analyzed ${input.transcript.length} transcript entries.`,
     decisions: analysis.decisions,
-    tasks: analysis.tasks,
+    tasks: attributeTaskOwners(analysis.tasks, input),
     risks: analysis.risks,
     spiced: analysis.spiced,
     folderPath: `MeetingOps / ${folderCategory} / ${workspaceName} / ${input.date} - ${input.title}`,
