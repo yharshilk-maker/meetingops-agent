@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MeetingOps Meet Agent",
-  "version": "0.1.0",
-  "description": "Captures Google Meet tab audio and sends it to the MeetingOps AI agent.",
+  "version": "0.2.0",
+  "description": "Captures Google Meet tab audio and dispatches the MeetingOps agent to join the call.",
   "permissions": ["activeTab", "offscreen", "storage", "tabCapture"],
   "host_permissions": [
     "https://meet.google.com/*",

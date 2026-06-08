@@ -1,6 +1,10 @@
 import { assertExtensionAccess, extensionCorsHeaders } from "@/lib/agent/live-transcription";
 import { claimMeetBotJob, listMeetBotJobs, queueMeetBotJob } from "@/lib/agent/capture-orchestrator";
 
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: extensionCorsHeaders() });
+}
+
 export async function GET(request: Request) {
   try {
     assertExtensionAccess(request);

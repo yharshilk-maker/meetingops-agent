@@ -13,6 +13,25 @@ async function setCaptureState(patch) {
   await chrome.storage.local.set({ captureState: { ...current, ...patch } });
 }
 
+// Best-effort: dispatch the visible MeetingOps bot to join this call.
+// A locally running meet-bot worker claims the job and joins as a participant.
+async function dispatchBot(settings, meetingUrl, title) {
+  try {
+    const response = await fetch(`${settings.backendUrl}/api/meet-bot/jobs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(settings.extensionToken ? { "x-meetingops-extension-token": settings.extensionToken } : {}),
+      },
+      body: JSON.stringify({ meetingUrl, title }),
+    });
+    const result = await response.json().catch(() => ({}));
+    await setCaptureState({ botDispatched: response.ok, botError: response.ok ? null : (result.error || "Agent dispatch failed.") });
+  } catch (error) {
+    await setCaptureState({ botDispatched: false, botError: error.message });
+  }
+}
+
 async function ensureOffscreenDocument() {
   const offscreenUrl = chrome.runtime.getURL("offscreen.html");
   const contexts = await chrome.runtime.getContexts({
@@ -35,7 +54,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       const settings = await getSettings();
       await ensureOffscreenDocument();
-      await setCaptureState({ status: "starting", tabId: message.tabId, title: message.title, meetingUrl: message.meetingUrl, error: null });
+      await setCaptureState({ status: "starting", tabId: message.tabId, title: message.title, meetingUrl: message.meetingUrl, error: null, botDispatched: null, botError: null });
+      // Send the visible bot to join in parallel with audio capture (best-effort).
+      dispatchBot(settings, message.meetingUrl, message.title || "Google Meet conversation");
       const response = await chrome.runtime.sendMessage({
         target: "offscreen",
         type: "start-recording",

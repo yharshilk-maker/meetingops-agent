@@ -21,7 +21,12 @@ async function refresh() {
     completed: "Meeting analyzed. Open the MeetingOps dashboard.",
     failed: "Capture failed.",
   }[state.status] || "Ready.";
-  detailText.textContent = state.error || (state.status === "recording" ? "Audio stays compressed in the extension until you stop." : "");
+  let detail = state.error || (state.status === "recording" ? "Audio stays compressed in the extension until you stop." : "");
+  if (recording) {
+    if (state.botDispatched === true) detail += " Agent dispatched to join — needs the meet-bot worker running.";
+    else if (state.botError) detail += ` Agent join unavailable: ${state.botError}`;
+  }
+  detailText.textContent = detail;
 }
 
 toggle.addEventListener("click", async () => {
