@@ -100,10 +100,13 @@ async function joinMeeting() {
   }
   console.log("Join request submitted. Waiting for the bot to enter the call...");
 
+  // Wait up to 3 minutes — host may take a while to click Admit.
   await page.waitForFunction(() => {
     const text = document.body.innerText;
-    return text.includes("Leave call") || text.includes("Meeting details") || text.includes("Everyone is here") || text.includes("You're the only one here");
-  }, { timeout: 120_000 });
+    return text.includes("Leave call") || text.includes("Meeting details") ||
+           text.includes("Everyone is here") || text.includes("You're the only one here") ||
+           text.includes("Joining") || text.includes("You're in");
+  }, { timeout: 180_000 });
   console.log("Bot joined the meeting.");
 }
 
