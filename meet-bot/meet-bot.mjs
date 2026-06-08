@@ -12,7 +12,9 @@ const extensionToken = process.env.MEETINGOPS_EXTENSION_TOKEN || "";
 const botName = process.env.MEETINGOPS_BOT_NAME || "MeetingOps AI Agent";
 const maxMinutes = Number(process.env.MEETINGOPS_BOT_MAX_MINUTES || 180);
 const jobId = process.env.MEETINGOPS_BOT_JOB_ID;
-const profile = process.env.MEETINGOPS_BOT_PROFILE || path.resolve(".meetingops-bot-profile");
+// Default to a fresh, logged-out profile so the bot joins as a distinct guest
+// named `botName` ("MeetingOps AI Agent") instead of a duplicate of your account.
+const profile = process.env.MEETINGOPS_BOT_PROFILE || path.resolve(".meetingops-bot-guest-profile");
 const chromePath = process.env.CHROME_EXECUTABLE || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const { chromium } = playwright;
 const startedAt = new Date().toISOString();
@@ -49,7 +51,8 @@ async function clickFirst(selectors) {
 }
 
 async function dismissDialogs() {
-  for (const label of ["Got it", "Continue", "Dismiss", "No thanks", "Close", "Use without an account"]) {
+  // Includes Google's cookie/consent interstitial buttons a fresh profile may hit.
+  for (const label of ["Accept all", "Reject all", "I agree", "Got it", "Continue", "Dismiss", "No thanks", "Close", "Use without an account"]) {
     const button = page.getByRole("button", { name: label }).first();
     if (await button.isVisible({ timeout: 400 }).catch(() => false)) await button.click().catch(() => {});
   }
