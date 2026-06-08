@@ -48,37 +48,58 @@ async function clickFirst(selectors) {
   return false;
 }
 
+async function dismissDialogs() {
+  for (const label of ["Got it", "Continue", "Dismiss", "No thanks", "Close", "Use without an account"]) {
+    const button = page.getByRole("button", { name: label }).first();
+    if (await button.isVisible({ timeout: 400 }).catch(() => false)) await button.click().catch(() => {});
+  }
+}
+
 async function joinMeeting() {
   console.log(`Opening ${meetingUrl}`);
   await page.goto(meetingUrl, { waitUntil: "domcontentloaded", timeout: 90_000 });
-  await sleep(5000);
+  await sleep(6000);
+  await dismissDialogs();
 
+  // Fill the guest name only if Meet asks (happens when not signed in).
   const nameInput = page.locator('input[placeholder*="name" i], input[aria-label*="name" i]').first();
-  if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) await nameInput.fill(botName);
+  if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await nameInput.fill(botName).catch(() => {});
+    console.log(`Entered guest name "${botName}".`);
+  }
 
-  // The bot joins visibly but never sends microphone or camera media.
-  await clickFirst([
-    'button[aria-label*="Turn off microphone" i]',
-    'div[role="button"][aria-label*="Turn off microphone" i]',
-  ]);
-  await clickFirst([
-    'button[aria-label*="Turn off camera" i]',
-    'div[role="button"][aria-label*="Turn off camera" i]',
-  ]);
+  // Turn mic/camera off if those controls exist (non-fatal).
+  for (const label of [/turn off microphone/i, /turn off camera/i]) {
+    const button = page.getByRole("button", { name: label }).first();
+    if (await button.isVisible({ timeout: 1000 }).catch(() => false)) await button.click().catch(() => {});
+  }
 
-  const joined = await clickFirst([
-    'button:has-text("Join now")',
-    'button:has-text("Ask to join")',
-    'button:has-text("Request to join")',
-    'div[role="button"]:has-text("Join now")',
-    'div[role="button"]:has-text("Ask to join")',
-  ]);
-  if (!joined) throw new Error("Could not find a Google Meet join control.");
+  // Meet often renders the join button several seconds after the page loads,
+  // so poll for it (by accessible name) for up to ~45s instead of giving up.
+  const joinButton = page.getByRole("button", { name: /join now|ask to join|join meeting|request to join/i }).first();
+  try {
+    await joinButton.waitFor({ state: "visible", timeout: 45_000 });
+    await joinButton.click();
+  } catch {
+    // Diagnostics: show exactly what Meet is displaying so we can adapt.
+    const buttons = await page.evaluate(() =>
+      [...document.querySelectorAll('button,[role="button"]')]
+        .map((el) => (el.getAttribute("aria-label") || el.textContent || "").trim())
+        .filter(Boolean).slice(0, 50));
+    const screen = await page.evaluate(() =>
+      document.body.innerText.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 8).join(" | "));
+    await page.screenshot({ path: "join-debug.png" }).catch(() => {});
+    console.error("\n--- COULD NOT FIND JOIN BUTTON ---");
+    console.error("Screen text:", screen);
+    console.error("Visible buttons:", JSON.stringify(buttons));
+    console.error("Saved a screenshot to meet-bot/join-debug.png — open it to see the screen.\n");
+    throw new Error("Could not find a Google Meet join control.");
+  }
   console.log("Join request submitted. Waiting for the bot to enter the call...");
 
   await page.waitForFunction(() => {
     const text = document.body.innerText;
-    return text.includes("Leave call") || text.includes("Meeting details") || text.includes("Everyone is here");
+    return text.includes("Leave call") || text.includes("Meeting details") || text.includes("Everyone is here") || text.includes("You're the only one here");
   }, { timeout: 120_000 });
   console.log("Bot joined the meeting.");
 }
