@@ -47,6 +47,7 @@ export default function Home() {
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showDemoStudio, setShowDemoStudio] = useState(false);
   const [showTestBench, setShowTestBench] = useState(false);
+  const [showDispatch, setShowDispatch] = useState(false);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [workspaceAgentActive, setWorkspaceAgentActive] = useState(false);
@@ -240,7 +241,7 @@ export default function Home() {
       <main className="min-h-screen lg:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dfe4e1] bg-[#f5f6f8]/90 px-5 backdrop-blur-xl md:px-8">
           <div className="flex items-center gap-2 text-sm text-[#6d7872]"><span>MeetingOps</span><ChevronRight size={14} /><span className="font-medium text-[#26352d]">{view === "meeting" ? activeMeeting?.title : view === "workspace" ? workspace.name : view === "actions" ? "Action center" : view === "runs" ? "Agent runs" : view === "demo" ? "Demo" : "Overview"}</span></div>
-          <div className="flex items-center gap-2"><button onClick={() => setView("demo")} className="icon-button" title="Watch Demo"><Video size={15} /></button><button onClick={() => setShowIntegrations(true)} className="icon-button" title="Integrations"><Cloud size={15} /></button><button onClick={() => setView("runs")} className="icon-button" title="Agent runs"><Activity size={15} /></button><button onClick={() => setView("actions")} className="icon-button" title="Action center"><ShieldCheck size={15} /></button><button onClick={resetDemo} className="icon-button" title="Reset demo"><RotateCcw size={15} /></button><button onClick={() => setShowDemoStudio(true)} className="primary-button !bg-[#172b21]"><Clapperboard size={16} /> Demo studio</button><button onClick={() => setShowTestBench(true)} className="primary-button !bg-[#476252]"><MessageSquareText size={16} /> Paste transcript</button><button onClick={() => setShowIngest(true)} className="primary-button"><Zap size={16} /> Simulate Meet event</button></div>
+          <div className="flex items-center gap-2"><button onClick={() => setView("demo")} className="icon-button" title="Watch Demo"><Video size={15} /></button><button onClick={() => setShowIntegrations(true)} className="icon-button" title="Integrations"><Cloud size={15} /></button><button onClick={() => setView("runs")} className="icon-button" title="Agent runs"><Activity size={15} /></button><button onClick={() => setView("actions")} className="icon-button" title="Action center"><ShieldCheck size={15} /></button><button onClick={resetDemo} className="icon-button" title="Reset demo"><RotateCcw size={15} /></button><button onClick={() => setShowDemoStudio(true)} className="primary-button !bg-[#172b21]"><Clapperboard size={16} /> Demo studio</button><button onClick={() => setShowDispatch(true)} className="primary-button !bg-[#2f5640]"><Bot size={16} /> Send agent to Meet</button><button onClick={() => setShowTestBench(true)} className="primary-button !bg-[#476252]"><MessageSquareText size={16} /> Paste transcript</button><button onClick={() => setShowIngest(true)} className="primary-button"><Zap size={16} /> Simulate Meet event</button></div>
         </header>
         {view === "dashboard" && <Dashboard meetings={meetings} workspace={workspace} runs={agentRuns} googleConnected={googleConnected} workspaceAgentActive={workspaceAgentActive} pending={pendingActions.length} onNew={() => setShowIngest(true)} onOpen={(id) => { setActiveMeetingId(id); setView("meeting"); }} />}
         {view === "meeting" && activeMeeting && <MeetingView meeting={activeMeeting} onApprove={(m, a) => setActionStatus(m, a, "completed")} onReject={(m, a) => setActionStatus(m, a, "rejected")} onOpenWorkspace={() => setView("workspace")} />}
@@ -253,8 +254,33 @@ export default function Home() {
       {showIntegrations && <IntegrationsModal onClose={() => setShowIntegrations(false)} />}
       {showDemoStudio && <DemoStudioModal onClose={() => setShowDemoStudio(false)} onPrime={primeShowcase} onReset={resetDemo} />}
       {showTestBench && <TestBenchModal onClose={() => setShowTestBench(false)} onComplete={acceptRun} />}
+      {showDispatch && <DispatchAgentModal onClose={() => setShowDispatch(false)} />}
     </div>
   );
+}
+
+function DispatchAgentModal({ onClose }: { onClose: () => void }) {
+  const [url, setUrl] = useState("");
+  const [status, setStatus] = useState("");
+  const [sent, setSent] = useState(false);
+  async function dispatch() {
+    setStatus("Dispatching the MeetingOps agent...");
+    const response = await fetch("/api/meet-bot/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meetingUrl: url.trim() }),
+    });
+    const result = await response.json();
+    if (!response.ok) { setStatus(result.error ?? "Could not dispatch the agent."); return; }
+    setSent(true);
+    setStatus(`Agent queued for ${result.job.meetingUrl}. A running Meet-bot worker will join within ~15s.`);
+  }
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1712]/60 p-4 backdrop-blur-sm"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5f806b]"><Bot size={13} /> Live Meet capture</p><h2 className="text-xl font-semibold tracking-[-0.03em]">Send the agent to a Google Meet</h2><p className="mt-2 text-xs leading-5 text-[#77837c]">Paste a Meet link. The MeetingOps bot joins as a visible participant, turns its mic and camera off, captures live captions, and runs the agent when the call ends.</p></div><button onClick={onClose} className="icon-button"><X size={15} /></button></div>
+    <label className="text-xs font-semibold text-[#59685f]">Google Meet link<input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://meet.google.com/abc-defg-hij" className="mt-2 w-full rounded-lg border border-[#d8dfda] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#789b74]" /></label>
+    <button onClick={dispatch} disabled={!url.trim()} className="primary-button mt-4 w-full justify-center disabled:opacity-50"><Bot size={15} /> Dispatch agent to this meeting</button>
+    {status && <p className={`mt-3 text-center text-xs leading-5 ${sent ? "text-[#3f7355]" : "text-[#617268]"}`}>{status}</p>}
+    <div className="mt-4 rounded-xl bg-[#f4f6f4] p-3 text-[11px] leading-5 text-[#76827b]"><strong className="font-semibold text-[#52645a]">Requires the bot worker.</strong> On your machine, run once <code>cd meet-bot &amp;&amp; npm install &amp;&amp; npm run login</code>, then keep <code>MEETINGOPS_BACKEND_URL=&lt;this site&gt; npm run worker</code> running. The worker claims the job and drives Chrome into the call.</div>
+  </div></div>;
 }
 
 function NavButton({ active, icon, label, badge, onClick }: { active: boolean; icon: React.ReactNode; label: string; badge?: number; onClick: () => void }) {
